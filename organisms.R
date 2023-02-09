@@ -73,3 +73,29 @@ zoo2 %>%
   group_by(Group, Family, Genus) %>% 
   summarize(ug_WW_ind = median(ug_WWperind), n = n()) %>% 
   print(n = 30)
+
+
+
+unique(phy$Phylum)
+phy %>% 
+  select(lake.name, Phylum:Species, biovol.um3.per.ml) %>% 
+  mutate(Genus = trimws(Genus)) %>% 
+  filter(Genus != "unknown") %>%
+  group_by(lake.name, Phylum, Class, Order, Family, Genus) %>% 
+  summarize(biovol_um3_ml = median(biovol.um3.per.ml), n = n()) %>% 
+  filter(Phylum %in% c("Chlorophyta", "Bacillariophyta", "Cyanobacteria", "Charophyta", "Ochrophyta")) %>% 
+  ggplot(aes(x = reorder(Genus, biovol_um3_ml), y = biovol_um3_ml/10^6)) + geom_boxplot() + 
+  scale_y_log10() + 
+  coord_flip() + 
+  facet_wrap(~Phylum, scales = "free_y", nrow = 1)
+
+
+bind_rows(zoo1, zoo2) %>% 
+  select(lake.name, Group:ug_WWperind, mgWW.l, org.l) %>% 
+  filter(org.l > 0, Genus != "unknown") %>% 
+  group_by(lake.name, Group, Taxa, Genus) %>% 
+  summarize(mgWW.l = median(mgWW.l), n = n()) %>% 
+  ggplot(aes(x = reorder(Genus, mgWW.l), y = mgWW.l)) + geom_boxplot() + 
+  scale_y_log10() + 
+  coord_flip() + 
+  facet_wrap(~Group, scales = "free_y", nrow = 1)
