@@ -31,15 +31,31 @@ st_crop(hyd,apa) %>%
   ggplot() + geom_sf(color = "blue", fill = "blue") + 
   geom_sf(data = adk2, size = 2)
 
-st_intersection(apa,hyd) %>% 
-  filter(!grepl("River", NAME), !grepl("Pond", NAME), !grepl("Creek", NAME)) %>% 
+apahyd <- st_intersection(apa,hyd)
+apahyd%>% 
+  filter(!grepl("River", NAME), !grepl("Creek", NAME)) %>% 
+  # filter(!grepl("Pond", NAME)) %>% 
   ggplot() +  
-  geom_sf(data = apa, fill = "green4", color = "green4") +
-  geom_sf(data = apa, fill = NULL, color = "black") +
+  geom_sf(data = apa, fill = "green4", color = NA, alpha = 0.5) +
+  # geom_sf(data = apa, fill = NA, color = "black") +
   geom_sf(color = "blue", fill = "blue") +
   geom_sf(data = adk2, size = 2) + 
-  theme_bw()
+  # theme_bw()
+  theme_void()
 
+hyd[(grepl("Big Moose",hyd$NAME)),] %>% 
+  filter(BUS_FID_Ar == 4669782.8111) %>% 
+  ggplot() +  
+  #geom_sf(data = apa, fill = "green4", color = NA, alpha = 0.5) +
+  # geom_sf(data = apa, fill = NA, color = "black") +
+  geom_sf(color = "blue", fill = "blue") +
+  #geom_sf(data = adk2, size = 2) + 
+  # theme_bw()
+  theme_void() + facet_wrap(~BUS_FID_Ar)
+
+hyd[(grepl("Big Moose",hyd$NAME)),] %>% 
+  filter(BUS_FID_Ar == 4669782.8111) %>% 
+  
 
 
 adkwaternames <- unique(st_intersection(apa,hyd)$NAME)
