@@ -102,9 +102,16 @@ bind_rows(zoo1, zoo2) %>%
 
 
 
-tdo %>% filter(lake.name %in% c("Big Moose")) %>% 
+tdo %>% filter(lake.name %in% c("Willis")) %>% 
   ggplot(aes(x = depth, y = temp)) + geom_line(aes(group = date)) + 
   geom_point() +
   scale_x_reverse() + 
   coord_flip() + 
   facet_grid(lake.name~month(date))
+
+
+kdval <- secchi %>% group_by(lake.name) %>% 
+  summarize(kd = mean(1.7/secchi, na.rm = TRUE))
+
+hist(kdval$kd)
+print(arrange(kdval, desc(kd)), n = 30)
