@@ -47,3 +47,7 @@ GOTM/
 FLake/
 Simstrat/
 output/
+FedData/
+nhd/
+LakeChamplain/
+*.png
