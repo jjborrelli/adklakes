@@ -88,7 +88,7 @@ for(i in 1:nrow(meta)){
 t2 <- Sys.time()
 t2-t1
 
-i = 15
+i = 1
 ncdf <- paste0("output/output_", gsub(" ", "", meta$lake.name[i]), ".nc")
 
 
@@ -96,5 +96,6 @@ plot_heatmap(ncdf) +
   theme_bw(base_size = 12) + 
   scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(11, "Spectral"))) + 
   labs(x = "Date", y = "Depth (m)", color = "°C")
+
 
 
