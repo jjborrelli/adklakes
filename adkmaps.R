@@ -19,7 +19,7 @@ adk2 <- adk %>%
 
 
 ggplot(filter(states, ID == "new york")) + geom_sf() + 
-  geom_sf(data = hyd, fill = "blue", color = "blue") + 
+ # geom_sf(data = hyd, fill = "blue", color = "blue") + 
   geom_sf(data = adk2)
 
 
