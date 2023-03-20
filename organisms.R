@@ -45,7 +45,32 @@ rgen <- zoo2 %>%
 
 splist <- rbind(pgen, cgen, rgen)
 
-t(rbind(pgen, cgen, rgen)[,-1]) %>% dist() %>% hclust() %>% plot()
+t(rbind(pgen, cgen, rgen)[,-1]) %>% vegan::vegdist(method = "jaccard") %>% hclust() %>% 
+  plot(ylab = "")
+
+
+pgen <- select(phy, lake.name, Genus, biovol.um3.per.ml) %>% 
+  mutate(Genus = trimws(Genus)) %>% 
+  filter(Genus != "unknown") %>% 
+  group_by(lake.name, Genus) %>% 
+  summarize(pres = mean(biovol.um3.per.ml)) %>% 
+  tidyr::spread(key = lake.name, value = pres, fill = 0)
+
+cgen <- zoo1 %>% 
+  filter(org.l > 0, Genus != "unknown") %>% 
+  select(lake.name, Genus, mgWW.l) %>% group_by(lake.name, Genus) %>% 
+  summarize(pres = mean(mgWW.l)) %>%
+  tidyr::spread(key = lake.name, value = pres, fill = 0)
+
+rgen <- zoo2 %>% 
+  filter(org.l > 0, Genus != "unknown") %>% 
+  select(lake.name, Genus, mgWW.l) %>% group_by(lake.name, Genus) %>% 
+  summarize(pres = mean(mgWW.l)) %>%
+  tidyr::spread(key = lake.name, value = pres, fill = 0)
+
+
+t(rbind(pgen, cgen, rgen)[,-1]) %>% vegan::vegdist(method = "bray") %>% hclust() %>% 
+  plot(ylab = "")
 
 
 
@@ -110,8 +135,15 @@ tdo %>% filter(lake.name %in% c("Willis")) %>%
   facet_grid(lake.name~month(date))
 
 
-kdval <- secchi %>% group_by(lake.name) %>% 
+kdval <- secchi %>% group_by(lake.name, year) %>% 
   summarize(kd = mean(1.7/secchi, na.rm = TRUE))
 
 hist(kdval$kd)
 print(arrange(kdval, desc(kd)), n = 30)
+
+ggplot(kdval, aes(x = year, y = kd, group = lake.name)) + geom_line() + geom_point()
+
+ggplot(mutate(chem, lake.name = factor(lake.name, levels = arrange(kdval, desc(kd))$lake.name)),
+       aes(x = ymd(date), y = DOC, group = lake.name)) + 
+  geom_point() + geom_smooth(method = "gam") + facet_wrap(~lake.name)
+
