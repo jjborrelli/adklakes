@@ -8,6 +8,7 @@ library(ggplot2)
 states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 # nhdny <- st_read("NHD_H_New_York_State_Shape/Shape/", "NHDArea")
 # 
+# https://geodata.lib.utexas.edu/catalog/cugir-007739
 adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline")
 # 
 # install.packages("nhdR")
@@ -31,8 +32,8 @@ test %>%
   geom_sf(data = st_transform(adk, st_crs(test)), linewidth = 2)
 
 
-adkwater <- st_intersection(st_transform(adkalt, st_crs(test)), test)
-
+# adkwater <- st_intersection(st_transform(adkalt, st_crs(test)), test)
+adkwater <- readRDS("nhd/adk_nhd.rds")
 
 
 ggplot() +
