@@ -147,3 +147,32 @@ ggplot(mutate(chem, lake.name = factor(lake.name, levels = arrange(kdval, desc(k
        aes(x = ymd(date), y = DOC, group = lake.name)) + 
   geom_point() + geom_smooth(method = "gam") + facet_wrap(~lake.name)
 
+
+
+library(rglobi)
+
+allgenera <- c(unique(phy$Genus), unique(zoo1$Genus), unique(zoo2$Genus))
+imat <- get_interactions(taxon = allgenera[!grepl("unknown", tolower(allgenera))],
+                         interaction.type = "eats")
+m2 <- sapply(imat[,-1], function(x) unlist(x))
+
+# 
+# splist <- read.csv("../../OneDrive/HAVENS51AdirondackLakesCSVs/species.csv")
+# lf <- list.files("../../OneDrive/HAVENS51AdirondackLakesCSVs/WEBS_INIT/")
+# 
+# amats <- list()
+# for(i in seq_along(lf)){
+#   amats[[i]] <- read.csv(paste0("../../OneDrive/HAVENS51AdirondackLakesCSVs/WEBS_INIT/", lf[i]), row.names = 1)
+# }
+# 
+# spints <- reshape2::melt(as.matrix(amats[[2]])) %>%
+#   mutate(Var2 = as.numeric(gsub("X", "", Var2))) %>%
+#   filter(value == 1) %>% unique()
+# 
+# spints %>%
+#   filter(!Var1 %in% c(28:29), !Var2 %in% c(28:29)) %>%
+#   left_join(splist, by = c("Var1" = "NodeID")) %>%
+#   left_join(splist, by = c("Var2" = "NodeID")) %>%
+#   mutate(from = paste(Genus.x, Species.x), to = paste(Genus.y, Species.y)) %>%
+#   select(Var1, Var2, from, to) %>%
+#   mutate(from = case_when(Var1 == 220 ~ "benthic detritus", Var1 == 221 ~ "periphyton", TRUE ~ from))
