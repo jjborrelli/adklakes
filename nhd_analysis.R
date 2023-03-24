@@ -95,6 +95,9 @@ adknlcd <- st_transform(adkalt, st_crs(nlcd))
 nlcd2 <- crop(nlcd, adknlcd)
 nlcd3 <- mask(nlcd2, adknlcd)
 
+lgwa <- st_read("C:/Users/borre/OneDrive/Documents/JP_R/maps/LGWatershed/", "LGWatershedArea")
+nlcd2 <- crop(nlcd, st_transform(lgwa, st_crs(nlcd)))
+nlcd3 <- mask(nlcd2, st_transform(lgwa, st_crs(nlcd)))
 
 plot(nlcd3)
 
@@ -127,7 +130,7 @@ lcplot <- ggplot((nlcdd), aes(x = x, y = y)) +
   geom_raster(aes(fill = Class_Class)) + 
   scale_fill_manual(values = colorcombos$Class_Color, label = colorcombos$Class_Class) +
   coord_sf(crs = crs(nlcd3)) + 
-  theme_minimal() + 
+  theme_minimal() + theme(legend.position = "none") + 
   labs(x = "", y = "", fill = "") #+
   # ggspatial::annotation_north_arrow(style = north_arrow_nautical(), 
   #                                   pad_y = unit(1, "cm"), pad_x = unit(1.2, "cm")) + 
