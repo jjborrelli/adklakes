@@ -176,3 +176,89 @@ m2 <- sapply(imat[,-1], function(x) unlist(x))
 #   mutate(from = paste(Genus.x, Species.x), to = paste(Genus.y, Species.y)) %>%
 #   select(Var1, Var2, from, to) %>%
 #   mutate(from = case_when(Var1 == 220 ~ "benthic detritus", Var1 == 221 ~ "periphyton", TRUE ~ from))
+
+
+
+library(TSclust)
+
+docts <- chem %>% select(lake.name, date, Color.PtCo) %>% spread(key = lake.name, value = Color.PtCo) %>% 
+  group_by(year = year(ymd(date))) %>% select(-date) %>% summarize_all(mean, na.rm = TRUE) %>% 
+  ungroup() %>% select(-year)
+
+dist_ts <- diss(docts, METHOD = "DTWARP") 
+
+hc <- stats::hclust(dist_ts, method="complete") 
+hclus <- stats::cutree(hc, k = 2) %>% # hclus <- cluster::pam(dist_ts, k = 2)$clustering has a similar result
+  as.data.frame(.) %>%
+  dplyr::rename(.,cluster_group = .) %>%
+  tibble::rownames_to_column("type_col")
+
+hcdata <- ggdendro::dendro_data(hc)
+names_order <- hcdata$labels$label
+# Use the folloing to remove labels from dendogram so not doubling up - but good for checking hcdata$labels$label <- ""
+
+p1 <- hcdata %>%
+  ggdendro::ggdendrogram(., rotate=FALSE, leaf_labels=FALSE)
+
+p2 <- docts %>%
+  dplyr::mutate(index = 1:nrow(docts)) %>%
+  tidyr::gather(key = type_col,value = value, -index) %>%
+  dplyr::full_join(., hclus, by = "type_col") %>% 
+  mutate(type_col = factor(type_col, levels = hcdata$labels$label)) %>% 
+  ggplot(aes(x = index, y = value, colour = cluster_group)) +
+  geom_line() +
+  facet_wrap(~type_col, nrow = 1, strip.position="top") + 
+  guides(color=FALSE) +
+  theme_bw() + 
+  theme(strip.background = element_blank(), strip.text = element_blank())
+
+gp1<-ggplotGrob(p1)
+gp2<-ggplotGrob(p2) 
+
+gridExtra::grid.arrange(gp1, gp2, ncol=1, heights=c(3,3))
+
+
+
+
+docts <- nutr %>% filter(!is.na(TotalP.ug.L)) %>% 
+  select(lake.name, date, TotalP.ug.L) %>% 
+  group_by(lake.name, date) %>% 
+  summarize(TotalP.ug.L = mean(TotalP.ug.L, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  spread(key = lake.name, value = TotalP.ug.L) %>% 
+  group_by(year = year(ymd(date))) %>% select(-date) %>% summarize_all(mean, na.rm = TRUE) %>% 
+  ungroup() %>% select(-year)
+
+docts <- docts[,!is.nan(colSums(docts))]
+dist_ts <- diss(docts, METHOD = "DTWARP") 
+
+hc <- stats::hclust(dist_ts, method="complete") 
+hclus <- stats::cutree(hc, k = 2) %>% # hclus <- cluster::pam(dist_ts, k = 2)$clustering has a similar result
+  as.data.frame(.) %>%
+  dplyr::rename(.,cluster_group = .) %>%
+  tibble::rownames_to_column("type_col")
+
+hcdata <- ggdendro::dendro_data(hc)
+names_order <- hcdata$labels$label
+# Use the folloing to remove labels from dendogram so not doubling up - but good for checking hcdata$labels$label <- ""
+
+p1 <- hcdata %>%
+  ggdendro::ggdendrogram(., rotate=FALSE, leaf_labels=FALSE)
+
+p2 <- docts %>%
+  dplyr::mutate(index = 1:nrow(docts)) %>%
+  tidyr::gather(key = type_col,value = value, -index) %>%
+  dplyr::full_join(., hclus, by = "type_col") %>% 
+  mutate(type_col = factor(type_col, levels = hcdata$labels$label)) %>% 
+  ggplot(aes(x = index, y = value, colour = cluster_group)) +
+  geom_line() +
+  facet_wrap(~type_col, nrow = 1, strip.position="top") + 
+  guides(color=FALSE) +
+  theme_bw() + 
+  theme(strip.background = element_blank(), strip.text = element_blank())
+
+gp1<-ggplotGrob(p1)
+gp2<-ggplotGrob(p2) 
+
+gridExtra::grid.arrange(gp1, gp2, ncol=1, heights=c(3,3))
+
