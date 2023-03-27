@@ -219,7 +219,8 @@ gridExtra::grid.arrange(gp1, gp2, ncol=1, heights=c(3,3))
 
 
 
-
+# DTwarp cluster plot based on
+## https://damien-datasci-blog.netlify.app/post/time-series-clustering-with-dynamic-time-warp/
 docts <- nutr %>% filter(!is.na(TotalP.ug.L)) %>% 
   select(lake.name, date, TotalP.ug.L) %>% 
   group_by(lake.name, date) %>% 
