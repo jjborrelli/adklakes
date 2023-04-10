@@ -1,0 +1,80 @@
+---
+title: "Adirondack Lakes and Ponds"
+output: bookdown::html_document2
+date: "2023-04-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = NA)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+library(sf)
+
+library(ggplot2)
+```
+
+Here I provide an overview of data available to analyze for the SCALE project. 
+
+Future SCALE sampling effors will be tiered with different intensity levels depending its level of priority. All lakes will be sampled using remote sensing, 300 will be sampled once for basic characteristics, 50 will be sampled at intermediate levels (more variables, several sampling trips), and 25 will be sampled intensely (i.e., monitoring buoys, multiple sampling trips, etc) Our goal is to categorize which lakes should be sampled with which degree of intensity. We want to ensure that each sampling intensity level covers a range of waterbody types and characteristics found in the Adirondacks.  
+
+# Waterbodies in the Adirondack Park
+
+The first step is to determine the basic characterisitics of all waterbodies in the park. To do that we turn to the [National Hydrography Dataset](https://www.usgs.gov/national-hydrography/national-hydrography-dataset) (NHD). We look at all waterbodies in the NY region, and then filter out those that lie within the boundary of the Adirondack Park (Figure \@ref(fig:nyWATERBODIES)).
+
+```{r}
+states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
+
+# Adirondack outline
+# https://geodata.lib.utexas.edu/catalog/cugir-007739
+adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline")
+
+adkwater <- readRDS("nhd/adk_nhd2.rds")
+
+adkwaterbd <- readRDS("nhd/adk_nhd_wb12_adk.rds")
+adkwaterbd10 <- readRDS("nhd/adk_nhd_wb10_adk.rds")
+
+
+test <- readRDS("nhd/adk_nhd.rds")
+```
+
+```{r nyWATERBODIES, out.width = "50%", fig.cap = "Waterbodies in NY (grey) with those within the ADK park highlighted (blue)", fig.align = 'center'}
+knitr::include_graphics("newyorkwater.png")
+```
+
+The NHD lists nearly 11215 waterbodies in their dataset. Of those, only 1750 have GNIS ID numbers and names. A fun fact is that the most common name among lakes and ponds in the Adirondack Park is **Mud Pond**. 
+
+These lakes and ponds range from as small as 24 m^2^ to as large as 1121 km^2^. The NHD also includes elevation for 1115 of the lakes and ponds. The lowest elevation is an unnamed lake (0.12 km^2^) at 28.3 m, while the highest elevation in the dataset is for Woodworth Lake (0.138 km^2^) at 1680 m. 
+
+From the NHD we can also use data on watershed boundaries. The NHD includes multiple watershed boundaries based on several hydrological units. We are looking at HU10 (Figure \@ref(fig:adkhu10)), which includes a major waterbody.
+
+```{r adkhu10, out.width = "50%", fig.cap = "Waterbodies in ADK with watershed boundaries at the HU10 level", fig.align = 'center'}
+knitr::include_graphics("adkwaterboundary_hu10.png")
+```
+ 
+## Land Cover
+
+To determine the types of land cover around each waterbody we turn to the [National Land Cover Database](https://www.usgs.gov/centers/eros/science/national-land-cover-database) (NLCD; Figure \@ref(fig:adknlcd)). The NLCD gives land cover estimates for 30 m by 30 m grid cells. 
+
+```{r adknlcd, fig.cap = "Land cover in the Adirondack Park", fig.align = 'center'}
+knitr::include_graphics("adklandcover.png")
+```
+
+Over the whole park, the most common land cover type is deciduous forest (46%), followed by evergreen forest (21%), mixed forest (12%), and woody wetlands (9%; Figure \@ref(fig:adklcbar)). About 5.6% of the park is open water. 
+
+```{r adklcbar, out.width = "50%", fig.cap = "Land cover percentages in the Adirondack Park", fig.align = 'center'}
+knitr::include_graphics("adklandcoverBARPLOT.png")
+```
+
+# Historical Monitoring
+
+Adirondack waterbodies have been the subject of numerous long- and short-term monitoring programs. 
+
+## ALS
+
+
+## ALTM
