@@ -156,6 +156,16 @@ imat <- get_interactions(taxon = allgenera[!grepl("unknown", tolower(allgenera))
                          interaction.type = "eats")
 m2 <- sapply(imat[,-1], function(x) unlist(x))
 
+
+zoo1 %>% filter(Genus %in% allgenera[!grepl("unknown", tolower(allgenera))][181:222]) %>% 
+  group_by(Genus) %>% summarize(mean_mass = mean(ug_WWperind)) %>% 
+  mutate(upper = Param_reginvert[[2]][1] + Param_reginvert[[2]][2] * log10(mean_mass),
+         lower = Param_reginvert[[3]][1] + Param_reginvert[[3]][2] * log10(mean_mass), 
+         cent = lower + (upper - lower)/2)
+
+phymass <- phy %>% group_by(Genus) %>% summarize(mean_mass = mean(biovol.um3.per.cell/10^6)) 
+
+range(phymass$mean_mass)
 # 
 # splist <- read.csv("../../OneDrive/HAVENS51AdirondackLakesCSVs/species.csv")
 # lf <- list.files("../../OneDrive/HAVENS51AdirondackLakesCSVs/WEBS_INIT/")
@@ -185,7 +195,7 @@ docts <- chem %>% select(lake.name, date, Color.PtCo) %>% spread(key = lake.name
   group_by(year = year(ymd(date))) %>% select(-date) %>% summarize_all(mean, na.rm = TRUE) %>% 
   ungroup() %>% select(-year)
 
-dist_ts <- diss(docts, METHOD = "DTWARP") 
+dist_ts <- diss(docts, METHOD = "CORT") 
 
 hc <- stats::hclust(dist_ts, method="complete") 
 hclus <- stats::cutree(hc, k = 2) %>% # hclus <- cluster::pam(dist_ts, k = 2)$clustering has a similar result
