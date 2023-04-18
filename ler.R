@@ -51,11 +51,22 @@ for(i in 1:nrow(meta)){
   
   ## Set meteorology driver file
   met <- read.csv("LakeEnsemblR_meteo_standard_narr.csv")
-  met2 <- met %>% filter(year(ymd_hms(datetime)) >= 1994, year(ymd_hms(datetime)) < 2001)
+  # met2 <- met %>% filter(year(ymd_hms(datetime)) >= 1994, year(ymd_hms(datetime)) < 2001)
+  # 
+  # write.csv(met2, "LakeEnsemblr_meteo_narr_sub.csv", row.names = FALSE)
   
-  write.csv(met2, "LakeEnsemblr_meteo_narr_sub.csv", row.names = FALSE)
+  lakemets <- filter(meteo, lake.name == meta$lake.name[i], year(ymd_hms(date)) >= 1994, year(ymd_hms(date)) < 2001) %>% 
+    left_join(dplyr::select(met, datetime, Surface_Level_Barometric_Pressure_pascal), by = c("date" = "datetime")) %>% 
+    dplyr::select(-PERMANENT_ID, -lake.name)
+  colnames(lakemets) <- c("datetime",  
+                          "Shortwave_Radiation_Downwelling_wattPerMeterSquared", "Longwave_Radiation_Downwelling_wattPerMeterSquared", 
+                          "Air_Temperature_celsius", "Relative_Humidity_percent", "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", 
+                          "Rainfall_millimeterPerHour", "Snowfall_millimeterPerHour", "Surface_Level_Barometric_Pressure_pascal")
   
-  input_yaml_multiple(file = ler_yaml, "LakeEnsemblr_meteo_narr_sub.csv", key1 = "meteo", key2 = "file")
+  write.csv(lakemets, "LakeEnsemblr_meteo_adk_sub.csv", row.names = FALSE)
+  
+  # input_yaml_multiple(file = ler_yaml, "LakeEnsemblr_meteo_narr_sub.csv", key1 = "meteo", key2 = "file")
+  input_yaml_multiple(file = ler_yaml, "LakeEnsemblr_meteo_adk_sub.csv", key1 = "meteo", key2 = "file")
   
   # output
   ## Set output file
@@ -88,14 +99,14 @@ for(i in 1:nrow(meta)){
 t2 <- Sys.time()
 t2-t1
 
-i = 1
+i = 3
 ncdf <- paste0("output/output_", gsub(" ", "", meta$lake.name[i]), ".nc")
 
 
 plot_heatmap(ncdf) +
   theme_bw(base_size = 12) + 
   scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(11, "Spectral"))) + 
-  labs(x = "Date", y = "Depth (m)", color = "°C")
+  labs(x = "Date", y = "Depth (m)", color = "°C", title = meta$lake.name[i])
 
 
 

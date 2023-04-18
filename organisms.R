@@ -75,7 +75,7 @@ t(rbind(pgen, cgen, rgen)[,-1]) %>% vegan::vegdist(method = "bray") %>% hclust()
 
 
 phy %>% 
-  select(Phylum:Species, biovol.um3.per.cell) %>% 
+  dplyr::select(Phylum:Species, biovol.um3.per.cell) %>% 
   mutate(Genus = trimws(Genus)) %>% 
   filter(Genus != "unknown") %>% 
   unique() %>% 
@@ -84,7 +84,7 @@ phy %>%
   print(n = 200)
 
 zoo1 %>% 
-  select(Group:ug_WWperind) %>% 
+  dplyr::select(Group:ug_WWperind) %>% 
   unique() %>% 
   filter(Genus != "unknown") %>% 
   group_by(Group, Taxa, Genus) %>% 
@@ -92,7 +92,7 @@ zoo1 %>%
   print(n = 30)
   
 zoo2 %>% 
-  select(Group:ug_WWperind) %>% 
+  dplyr::select(Group:ug_WWperind) %>% 
   unique() %>% 
   filter(Genus != "unknown") %>% 
   group_by(Group, Family, Genus) %>% 

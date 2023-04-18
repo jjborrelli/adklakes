@@ -29,11 +29,12 @@ apa <- st_transform(adkland, st_crs(test))
 
 test %>% 
   ggplot() + geom_sf(color = "blue", fill = "blue") + 
-  geom_sf(data = st_transform(adk, st_crs(test)), linewidth = 2)
+  geom_sf(data = st_transform(adkalt, st_crs(test)), linewidth = 2)
 
 
 # adkwater <- st_intersection(st_transform(adkalt, st_crs(test)), test)
-adkwater <- readRDS("nhd/adk_nhd.rds")
+# saveRDS(st_intersection(adkwater, st_transform(adkalt, st_crs(adkwater))), "nhd/adk_nhd2.rds")
+adkwater <- readRDS("nhd/adk_nhd2.rds")
 
 
 ggplot() +
@@ -59,6 +60,8 @@ ggplot() +
 
 # saveRDS(adkwaterbd, "nhd/adk_nhd_wb12_adk.rds")
 # saveRDS(adkwaterbd10, "nhd/adk_nhd_wb10_adk.rds")
+adkwaterbd <- readRDS("nhd/adk_nhd_wb12_adk.rds")
+adkwaterbd10 <- readRDS("nhd/adk_nhd_wb10_adk.rds")
 
 wbdplot <- ggplot() +
   #geom_sf(data = st_transform(adkalt, st_crs(test)), linewidth = 1.2) + 
@@ -94,10 +97,10 @@ plot(nlcd)
 adknlcd <- st_transform(adkalt, st_crs(nlcd))
 nlcd2 <- crop(nlcd, adknlcd)
 nlcd3 <- mask(nlcd2, adknlcd)
-
-lgwa <- st_read("C:/Users/borre/OneDrive/Documents/JP_R/maps/LGWatershed/", "LGWatershedArea")
-nlcd2 <- crop(nlcd, st_transform(lgwa, st_crs(nlcd)))
-nlcd3 <- mask(nlcd2, st_transform(lgwa, st_crs(nlcd)))
+# 
+# lgwa <- st_read("C:/Users/borre/OneDrive/Documents/JP_R/maps/LGWatershed/", "LGWatershedArea")
+# nlcd2 <- crop(nlcd, st_transform(lgwa, st_crs(nlcd)))
+# nlcd3 <- mask(nlcd2, st_transform(lgwa, st_crs(nlcd)))
 
 plot(nlcd3)
 
