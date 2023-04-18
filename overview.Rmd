@@ -9,6 +9,8 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = 
 ```
 
 ```{r}
+library(readxl)
+
 library(dplyr)
 library(tidyr)
 library(lubridate)
@@ -16,6 +18,8 @@ library(lubridate)
 library(sf)
 
 library(ggplot2)
+library(ggridges)
+library(patchwork)
 ```
 
 Here I provide an overview of data available to analyze for the SCALE project. 
@@ -31,7 +35,7 @@ states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 
 # Adirondack outline
 # https://geodata.lib.utexas.edu/catalog/cugir-007739
-adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline")
+adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline", quiet = TRUE)
 
 adkwater <- readRDS("nhd/adk_nhd2.rds")
 
@@ -39,7 +43,7 @@ adkwaterbd <- readRDS("nhd/adk_nhd_wb12_adk.rds")
 adkwaterbd10 <- readRDS("nhd/adk_nhd_wb10_adk.rds")
 
 
-test <- readRDS("nhd/adk_nhd.rds")
+# test <- readRDS("nhd/adk_nhd.rds")
 ```
 
 ```{r nyWATERBODIES, out.width = "50%", fig.cap = "Waterbodies in NY (grey) with those within the ADK park highlighted (blue)", fig.align = 'center'}
@@ -49,6 +53,12 @@ knitr::include_graphics("newyorkwater.png")
 The NHD lists nearly 11215 waterbodies in their dataset. Of those, only 1750 have GNIS ID numbers and names. A fun fact is that the most common name among lakes and ponds in the Adirondack Park is **Mud Pond**. 
 
 These lakes and ponds range from as small as 24 m^2^ to as large as 1121 km^2^. The NHD also includes elevation for 1115 of the lakes and ponds. The lowest elevation is an unnamed lake (0.12 km^2^) at 28.3 m, while the highest elevation in the dataset is for Woodworth Lake (0.138 km^2^) at 1680 m. 
+
+The quantiles for lakes and pond surface area (ha) are: `r round(quantile(adkwater$areasqkm, probs = seq(0,1,.1))*100, 2)`
+
+90% of lakes and ponds are less than 7.4 ha. Of those that are larger the quantiles (0.91-0.99 by 0.01) are: `r round(quantile(adkwater$areasqkm, probs = seq(0.91,0.99,.01))*100, 1)`
+
+
 
 From the NHD we can also use data on watershed boundaries. The NHD includes multiple watershed boundaries based on several hydrological units. We are looking at HU10 (Figure \@ref(fig:adkhu10)), which includes a major waterbody.
 
@@ -70,11 +80,312 @@ Over the whole park, the most common land cover type is deciduous forest (46%), 
 knitr::include_graphics("adklandcoverBARPLOT.png")
 ```
 
+# Remote Sensing
+
+*NLDAS data here*
+
 # Historical Monitoring
 
 Adirondack waterbodies have been the subject of numerous long- and short-term monitoring programs. 
 
-## ALS
+## Ice cover
+
+For 8 lakes in the Adirondacks we have a record of ice-in and ice-out from 1874 through 2022. Ice-out records show a generally declining trend, with ice-out occurring earlier each year (Figure \@ref(fig:iceout)). There does not, however, seem to be any apparent trend in the duration of ice cover in these lakes, though the variance in duration may be increasing (Figure \@ref(fig:icecover)).   
+
+```{r}
+icecov <- read.csv("data/lake_ice_1874-2022.csv")
+```
+
+```{r iceout, fig.cap = "The ice out date for each year for each of 8 monitored lakes", fig.align='center'}
+ggplot(icecov, aes(x = year(ymd(date_ice_out)), y = julian_day_out, color = duration_day)) +
+  geom_point() + facet_wrap(~lake, ncol = 2) + scale_color_viridis_c() + 
+  theme_bw() + 
+  labs(x = "Year", y = "Day of year", 
+       color = "Ice cover\nduration")
+```
+
+```{r icecover, fig.cap = "The period of ice cover for each of 8 monitored lakes. Zero indicates the start of the year (Jan 1), with negative values being days prior to the start of the year.", fig.align='center'}
+icecov %>% 
+  mutate(doy_start = case_when(julian_day_in > 240 ~ julian_day_in - 365, TRUE ~ julian_day_in)) %>% 
+  ggplot(aes(x = year(ymd(date_ice_out)), ymin = doy_start, ymax = julian_day_out)) + geom_linerange() +
+  facet_wrap(~lake, ncol = 2) + 
+  theme_bw() + 
+  labs(x = "Year", y = "Day of year")
+```
 
 
-## ALTM
+## Adirondack Lake Survey
+
+The Adirondack Lake Survey (ALS). 
+
+### 1984-1987
+
+The 1984-1987 ALS data can be found on [Figshare here](https://figshare.com/articles/dataset/Adirondack_Lakes_Survey_1984-1987_Complete_Data_Set/22312732). It includes tables on location, status, morphometrics, substrate, watershed characteristics, inlets and outlets, macroinvertebrates, aquatic vegetation, physical parameters, gear type for fishing, individual and community fish data, water chemistry, liming, and reclamation.  
+
+```{r}
+als_location <- read_excel("data/ALS84/REC1_DATA_TABLE.xls")
+als_status <- read_excel("data/ALS84/REC2_DATA_TABLE.xls")
+als_morpho <- read_excel("data/ALS84/REC3_DATA_TABLE.xls")
+als_substr <- read_excel("data/ALS84/REC4_DATA_TABLE.xls")
+als_wshed <- read_excel("data/ALS84/REC5_DATA_TABLE.xls")
+als_inout <- read_excel("data/ALS84/REC6_DATA_TABLE.xls")
+als_macinv <- read_excel("data/ALS84/REC7_DATA_TABLE.xls")
+als_aqveg <- read_excel("data/ALS84/REC8_DATA_TABLE.xls")
+als_physic <- read_excel("data/ALS84/REC9_DATA_TABLE.xls")
+als_gear <- read_excel("data/ALS84/REC10_DATA_TABLE.xls")
+als_indfish <- read_excel("data/ALS84/REC11_DATA_TABLE.xls")
+als_fishcomp <- read_excel("data/ALS84/REC12_DATA_TABLE.xls")
+als_wchem <- read_excel("data/ALS84/REC13_DATA_TABLE.xls")
+als_stock <- read_excel("data/ALS84/REC14_DATA_TABLE.xls")
+als_liming <- read_excel("data/ALS84/REC15_DATA_TABLE.xls")
+als_reclam <- read_excel("data/ALS84/REC16_DATA_TABLE.xls")
+```
+
+```{r alsMORPHO, fig.align = "center", fig.height = 6, fig.width = 4, fig.caption = "ALS lake elevation, volume, watershed area, surface area, max depth, and mean depth"}
+elev1 <- ggplot(als_morpho, aes(x = ELEV)) + geom_histogram()
+warea1 <- ggplot(als_morpho[als_morpho$WAREA > 0,], aes(x = WAREA)) + geom_histogram() + scale_x_log10()
+sarea1 <- ggplot(als_morpho, aes(x = SAREA)) + geom_histogram() + scale_x_log10()
+vol1 <- ggplot(als_morpho, aes(x = VOLUME)) + geom_histogram() + scale_x_log10()
+maxdep1 <- ggplot(als_morpho, aes(x = MAXDEPTH)) + geom_histogram()
+meandep1 <- ggplot(als_morpho, aes(x = MEANDEPTH)) + geom_histogram()
+
+(elev1 | vol1) / (warea1 | sarea1) / (maxdep1 | meandep1)
+```
+
+```{r tempPROF, fig.align = "center", fig.height = 6, fig.width = 4, fig.caption = "ALS temperature profiles by month"}
+ggplot(als_physic, aes(x = DEPTH, y = TEMPF)) + geom_point(alpha = 0.2) + 
+  geom_line(aes(group = PONDNO), alpha = 0.3) + 
+  scale_x_reverse() + 
+  coord_flip() + 
+  facet_wrap(~month(dmy(ADATE)), nrow = 2)
+```
+
+```{r doPROF, fig.align = "center", fig.height = 6, fig.width = 4, fig.caption = "ALS lake dissolved oxygen profiles by month"}
+ggplot(als_physic, aes(x = DEPTH, y = DO)) + geom_point(alpha = 0.2) + 
+  # geom_line(aes(group = PONDNO), alpha = 0.3) + 
+  scale_x_reverse() + 
+  coord_flip() + 
+  facet_wrap(~month(dmy(ADATE)), nrow = 2)
+```
+
+```{r, eval = FALSE}
+fshCODE <- read.csv("data/ALS84/ADKfishcodes.csv")
+
+ifishSUM <- als_indfish %>% 
+  group_by(PONDNO, STATION, ADATE, SPECIES) %>% 
+  summarize(n = n(), len = mean(LENGTH), wgt = mean(WEIGHT)) %>% 
+  left_join(fshCODE, by = c("SPECIES" = "SPP_CODE")) %>% arrange(desc(n))
+```
+
+
+
+### 1994-2005 Fish  
+
+The 1994-2005 ALS fisheries data can be found on [Figshare here](https://figshare.com/articles/dataset/ALTM_Fisheries_Dataset_1994-2005/22317337).
+
+
+
+### 2008-2012 Fish 
+
+The 2008-2012 ALS fisheries data can be found on [Figshare here](https://figshare.com/articles/dataset/ALTM_Fisheries_Dataset_2008-2012/22329316).
+
+
+
+## AEAP
+
+```{r}
+library(adklakedata)
+```
+
+There are 28 lakes in the AEAP dataset, obtained through the R package `adklakedata`. The package includes datasets on chemistry, crustacean zooplankton, rotifer zooplankton, phytoplankton, lake nutrients, secchi depth, temperature and dissolved oxygen profiles, metadata, and lake-specific meteorology.  
+
+
+## Citizen's Statewide Lake Assessment Program 
+
+The Citizen's Statewide Lake Assessment Program (CSLAP) is a volunteer-based monitoring program for lakes around New York State. CSLAP is managed by the NY Department of Environmental Conservation ([NYDEC](https://www.dec.ny.gov/)) and the New York State Federation of Lake Associations ([NYSFOLA](https://nysfola.org/)). Citizen volunteers collect samples that are analyzed by state (or state-approved) labs.   
+
+Of the 259 lakes in the program there are about 52 lakes in CSLAP within the Adirondack Park, with 72 total sampling locations (Figure \@ref(fig:cslapmap)). These data ([available on EDI here](https://portal.edirepository.org/nis/mapbrowse?packageid=edi.39.1)) run from June of 1986 through July 2012, though additional data may be available elsewhere.  
+
+```{r}
+cslap <- read.csv("data/NY_CSLAP.csv")
+```
+
+
+```{r cslapmap, fig.align = "center", fig.cap = "New York lakes involved in the CSLAP program, with the ADK park highlighted."}
+ggplot(st_transform(adkalt, st_crs(adkwater))) +  
+  geom_sf(data = filter(states, ID == "new york")) +
+  geom_sf(fill = "green4", alpha = 0.5) +
+  geom_point(data = cslap, aes(x = CorLong, y = CorLat)) + 
+  theme_minimal() 
+```
+
+These CSLAP data include information on each lake and sampling point, as an ID number assigned by NYDEC, an official lake name, and a NYS pond number. Other metadata include a NYS volume code, surface area, bottom depth, sample date, sample depth, sample type, latitude, and longitude. Samples are typically taken either 1.5 m below the surface or 1.5 m above the bottom, though other sample depths are included. The chemistry data include total phosphorus, NOx (nitrite and nitrate), NH4, total nitrogen, and chlorophyll. Samples also include secchi depth, temperature, and color.  
+
+
+```{r}
+
+pnts_sf <- st_as_sf(cslap, coords = c("CorLong", "CorLat"), crs = st_crs("WGS84"))
+cslap_adk <- st_intersection(pnts_sf, st_transform(adkalt, "WGS84"))
+```
+
+The surface area of lakes in CSLAP within ADK park range from 0.1 km^2^ to 114 km^2^
+```{r cslapSA, fig.cap = "Distribution of lake surface area in CSLAP lakes within ADK park", fig.align = "center", fig.height = 3, fig.width = 3}
+ggplot(cslap_adk, aes(x = Areal * 0.01)) + geom_histogram(binwidth = 2.5) +
+  theme_bw() + 
+  labs(x = "Surface Area (km2", y = "Count")
+```
+
+
+A look at general trends across all ADK CSLAP lakes suggest that nutrients (TN, TP) are remaining relatively flat, temperature is rising, while chlorophyll and color are decreasing and sechhi depth is getting deeper (Figure \@ref(fig:trendCSLAP)). The trend in secchi and color seem to buck trends observed in more generalized monitoring. which typically indicate shallower secchi depth due to darkening lakes (with higher DOC as a result of reduced acidification). 
+
+```{r trendCSLAP, fig.cap = "Secchi depth, color, total phosphorus, total nitrogen, and chlorophyll a in CSLAP lakes within the Adirondack Park. Lines are output from a Generalized Additive Model.", fig.align = "center", fig.height = 8, fig.width = 5}
+czsd <- cslap_adk %>% 
+  ggplot(aes(x = mdy(Date), y = as.numeric(Zsd))) + geom_point() +
+  geom_smooth(method = "gam") + 
+  scale_y_reverse() +
+  theme_bw() + 
+  labs(x = "Date", y = "Secchi Depth (m)")
+
+ctp <- cslap_adk %>% 
+  filter(Zsamp == "1.5", tolower(Type) == "surface") %>% 
+  ggplot(aes(x = mdy(Date), y = as.numeric(Tot_P))) + geom_point() +
+  geom_smooth(method = "gam") + 
+  theme_bw() + 
+  labs(x = "Date", y = "Total P (mg/L)")
+
+ctn <- cslap_adk %>% 
+  filter(Zsamp == "1.5", tolower(Type) == "surface") %>% 
+  ggplot(aes(x = mdy(Date), y = as.numeric(TN))) + geom_point() +
+  geom_smooth(method = "gam") + 
+  theme_bw() + 
+  labs(x = "Date", y = "Total N (mg/L)")
+
+cchla <- cslap_adk %>% 
+  filter(Zsamp == "1.5", tolower(Type) == "surface") %>% 
+  ggplot(aes(x = mdy(Date), y = as.numeric(Chl_a))) + geom_point() +
+  geom_smooth(method = "gam") + 
+  theme_bw() + 
+  labs(x = "Date", y = "Chlorophyll a (ug/L)")
+
+ccol <- cslap_adk %>% 
+  filter(Zsamp == "1.5", tolower(Type) == "surface") %>% 
+  ggplot(aes(x = mdy(Date), y = as.numeric(TColor))) + geom_point() +
+  geom_smooth(method = "gam") + 
+  theme_bw() + 
+  labs(x = "Date", y = "Color (PCU)")
+
+ctem <- cslap_adk %>% 
+  filter(Zsamp == "1.5", tolower(Type) == "surface") %>% 
+  ggplot(aes(x = mdy(Date), y = as.numeric(TH20))) + geom_point() +
+  geom_smooth(method = "gam") + 
+  theme_bw() + 
+  labs(x = "Date", y = "Temperature (°C)")
+
+(czsd | ccol) / (ctp | ctn) / (cchla | ctem)
+```
+
+
+## Lake multi-scaled Geospatial and temporal database
+
+The LAke multi-scaled GeOSpatial and temporal database (LAGOS-NE-LIMNO v1.087.3) is a data package that includes information on lakes and reservoirs in 17 lake-rich states in the Northeastern and upper Midwestern United States. The LIMNO part of the LAGOS-NE database includes in-situ measurements of lake water quality over the past 30 years, taken from federal, state, tribal, and non-profit agencies. Overall it covers 2600-12000 lakes (dependent on variable).  
+
+```{r}
+lagos1 <- data.table::fread("nhd/epi_waterquality10873.csv")
+lagos2 <- data.table::fread("nhd/lakeslimno10873.csv")
+
+lagosne <- left_join(lagos1, lagos2, by = "lagoslakeid")
+
+
+lagos_sf <- st_as_sf(lagosne, coords = c("nhd_long", "nhd_lat"), crs = st_crs("WGS84"))
+
+lagos_adk <- st_intersection(lagos_sf, st_transform(adkalt, "WGS84"))
+```
+
+```{r lagosMAP, fig.align='center', fig.height = 3.5, fig.width = 3.5, fig.cap = "Location of lakes in the LAGOS-NE-LIMNO dataset"}
+ggplot(st_transform(adkalt, "WGS84")) + geom_sf() + 
+  geom_sf(data = lagos_adk) + 
+  theme_minimal() 
+```
+
+```{r eval = FALSE}
+# – NC1: has detection limit and data value is above detection limit and has no qualifier or
+# comments
+# – NC2: has detection limit and data value is above detection limit, and has qualifier or
+# comments
+# – NC3: has no detection limit and has qualifier or comments
+# – NC4: has no detection limit and has no qualifiers or comments
+# – LE1: has detection limit, data value is less than or equal to detection limit, has qualifier
+# or comments
+# – LE2: has detection limit, data value is less than or equal to detection limit, has no qualifier
+# or comments
+# – LE3: has no detection limit, < than comes from source program, has qualifier or comments
+# – LE4: has no detection limit, < than comes from source program, has no qualifier or
+# comments
+```
+
+The max depth in LAGOS-NE-LIMNO lakes ranges from 0.6 m to 50 m, and mean depth ranges from 0.3 m to 21.3 m. 
+
+```{r lagosDEPTHs, fig.align = "center", fig.height = 5, fig.width = 3, fig.cap = "Mean and max depth in lagos lakes"}
+h1p <- ggplot(lagos_adk, aes(x = meandepth)) + geom_histogram() +  
+  theme_bw() + 
+  labs(x = "Mean Depth (m)", y = "Count")
+h2p <- ggplot(lagos_adk, aes(x = maxdepth)) + geom_histogram() +  
+  theme_bw() + 
+  labs(x = "Max Depth (m)", y = "Count")
+
+h1p/h2p
+```
+
+
+We can also look at trends in multiple values from the LAGOS-NE-LIMNO dataset. 
+
+```{r trendLAGOS, fig.cap = "Secchi depth, color, DOC, chlorophyll a, total phosphorus, and total nitrogen in LAGOS-NE lakes within the Adirondack Park. Lines are output from a Generalized Additive Model.", fig.align = "center", fig.height = 8, fig.width = 5}
+
+lagdoc <- ggplot(filter(lagos_adk, !grepl("LE", doc_censorcode), year(ymd(sampledate)) > 1984), 
+                 aes(y = (doc), x = ymd(sampledate))) + 
+  geom_point() + 
+  geom_smooth() +  
+  theme_bw() + 
+  labs(x = "Date", y = "DOC")
+
+lagchl <- ggplot(filter(lagos_adk, !grepl("LE", chla_censorcode), year(ymd(sampledate)) > 1984),
+                 aes(y = (chla), x = ymd(sampledate))) + geom_point() + 
+  geom_smooth() +    
+  theme_bw() + 
+  labs(x = "Date", y = "Chl a")
+
+lagtp <- ggplot(filter(lagos_adk, !grepl("LE", tp_censorcode), year(ymd(sampledate)) > 1984), 
+                aes(y = (tp), x = ymd(sampledate))) + geom_point() + 
+  geom_smooth() +    
+  theme_bw() + 
+  labs(x = "Date", y = "Total Phosphorus")
+
+lagcolr <- ggplot(filter(lagos_adk, !grepl("LE", colort_censorcode), year(ymd(sampledate)) > 1984),
+                  aes(y = (colort), x = ymd(sampledate))) + geom_point() + 
+  geom_smooth() +    
+  theme_bw() + 
+  labs(x = "Date", y = "Color T")
+
+lagsecc <- ggplot(filter(lagos_adk, !grepl("LE", secchi_censorcode), year(ymd(sampledate)) > 1984),
+       aes(y = (secchi), x = ymd(sampledate))) + geom_point() + 
+  geom_smooth() +    
+  theme_bw() + 
+  labs(x = "Date", y = "Secchi")
+
+
+lagtkn <- ggplot(filter(lagos_adk, !grepl("LE", tkn_censorcode), year(ymd(sampledate)) > 1984), 
+                 aes(y = (tn), x = ymd(sampledate))) + geom_point() + 
+  geom_smooth() +    
+  theme_bw() + 
+  labs(x = "Date", y = "Total Nitrogen")
+
+(lagsecc | lagcolr) / (lagdoc | lagchl) / (lagtp | lagtkn)
+
+```
+
+
+# Modelling
+
+## 1D Lake Model: LakeEnsemblR
+
+We simulate the time series of 1D temperature profiles from 1992 through 2012 for each of the 28 long-term monitoring lakes to examine patterns of stratification. 
