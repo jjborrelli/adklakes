@@ -2,50 +2,56 @@ library(LakeEnsemblR)
 library(rLakeAnalyzer)
 library(ggplot2)
 library(patchwork)
-t1 <- Sys.time()
-ler_yaml <- "LakeEnsemblR.yaml"
+library(adklakedata)
 
+t1 <- Sys.time()
+# set file name for ler yaml
+ler_yaml <- "LakeEnsemblR.yaml"
+# only look at lakes with max depth greater than 5 m
+meta <- adk_data("meta")
 meta <- meta[meta$max.depth > 5,]
+
+# get secchi depths
+secchi <- adk_data("secchi")
+
 for(i in 1:nrow(meta)){
   
-  # i = 3
-  # Location data
+  ## Set location data (from `meta`)
   input_yaml_multiple(file = ler_yaml, meta$lake.name[i], key1 = "location", key2 = "name")
   input_yaml_multiple(file = ler_yaml, meta$lat[i], key1 = "location", key2 = "latitude")
   input_yaml_multiple(file = ler_yaml, meta$long[i], key1 = "location", key2 = "longitude")
   input_yaml_multiple(file = ler_yaml, meta$elevation.m[i], key1 = "location", key2 = "elevation")
   input_yaml_multiple(file = ler_yaml, meta$max.depth[i], key1 = "location", key2 = "depth")
   
+  ## Set hypsographic curve by approximating bathymetry using rLakeAnalyzer
   bathy <- approx.bathy(meta$max.depth[i], meta$SA.ha[i]*1e5, meta$mean.depth[i])
   colnames(bathy) <- c("Depth_meter", "Area_meterSquared")
   write.csv(bathy, "lake_hyps.csv", row.names = FALSE)
   
-  
+  ## set hypsography and max depth in yaml
   input_yaml_multiple(file = ler_yaml, "lake_hyps.csv", key1 = "location", key2 = "hypsograph")
   input_yaml_multiple(file = ler_yaml, meta$max.depth[i], key1 = "location", key2 = "init_depth")
   
   
-  # input
-  
+  # compute initial profile
   laketdo <- filter(tdo, lake.name == meta$lake.name[i])
   initlake <- filter(laketdo, date == min(laketdo$date), depth <= meta$max.depth[i]) %>% select(deps = depth, temp)
   write.csv(initlake, "init_profile.csv", row.names = FALSE)
   
-  ## initial prof
+  ## set initial prof in yaml
   input_yaml_multiple(file = ler_yaml, "init_profile.csv", key1 = "input", key2 = "init_temp_profile", key3 = "file")
   
-  # light ext
-  
+  ## compute light ext
   kdval <- secchi %>% group_by(lake.name) %>% 
     summarize(kd = median(1.7/secchi, na.rm = TRUE))
-  
+  ## set kd in yaml
   input_yaml_multiple(file = ler_yaml, round(kdval$kd[kdval$lake.name %in% meta$lake.name[i]], 2),
                       key1 = "input", key2 = "light", key3 = "Kw")
   
-  ## start date
+  ## set start date
   input_yaml_multiple(file = ler_yaml, min(laketdo$date), key1 = "time", key2 = "start")
   
-  ## end date
+  ## set end date
   input_yaml_multiple(file = ler_yaml, "1999-12-31 00:00:00", key1 = "time", key2 = "stop")
   
   
@@ -59,22 +65,24 @@ for(i in 1:nrow(meta)){
     left_join(dplyr::select(met, datetime, Surface_Level_Barometric_Pressure_pascal), by = c("date" = "datetime")) %>% 
     dplyr::select(-PERMANENT_ID, -lake.name)
   colnames(lakemets) <- c("datetime",  
-                          "Shortwave_Radiation_Downwelling_wattPerMeterSquared", "Longwave_Radiation_Downwelling_wattPerMeterSquared", 
-                          "Air_Temperature_celsius", "Relative_Humidity_percent", "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", 
-                          "Rainfall_millimeterPerHour", "Snowfall_millimeterPerHour", "Surface_Level_Barometric_Pressure_pascal")
+                          "Shortwave_Radiation_Downwelling_wattPerMeterSquared",
+                          "Longwave_Radiation_Downwelling_wattPerMeterSquared", 
+                          "Air_Temperature_celsius", "Relative_Humidity_percent", 
+                          "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", 
+                          "Rainfall_millimeterPerHour", "Snowfall_millimeterPerHour", 
+                          "Surface_Level_Barometric_Pressure_pascal")
   
   write.csv(lakemets, "LakeEnsemblr_meteo_adk_sub.csv", row.names = FALSE)
   
   # input_yaml_multiple(file = ler_yaml, "LakeEnsemblr_meteo_narr_sub.csv", key1 = "meteo", key2 = "file")
   input_yaml_multiple(file = ler_yaml, "LakeEnsemblr_meteo_adk_sub.csv", key1 = "meteo", key2 = "file")
   
-  # output
+  
   ## Set output file
   outfile <- paste0("output_", gsub(" ", "", meta$lake.name[i]))
   input_yaml_multiple(file = ler_yaml, outfile, key1 = "output", key2 = "file")
   
   # params
-  
   ## Assume circle for now
   fetch <- sqrt((meta$SA.ha[i] * 1e5)/pi)*2 
   blen <- sqrt((meta$SA.ha[i] * 1e5)/pi)*2
@@ -85,12 +93,13 @@ for(i in 1:nrow(meta)){
   input_yaml_multiple(file = ler_yaml, bwid, key1 = "model_parameters", key2 = "GLM", key3 = "bsn_wid")
   
   
-  
+  # set config
   config_file <- ler_yaml
   model <- c("FLake", "GLM", "GOTM", "Simstrat")
   
   export_config(config_file = config_file, model = model)
   
+  # run model ensemble
   run_ensemble(config_file = config_file, model = model, parallel = TRUE)
   
   
@@ -99,10 +108,12 @@ for(i in 1:nrow(meta)){
 t2 <- Sys.time()
 t2-t1
 
+# select lake with i
 i = 3
+# read in simulation data
 ncdf <- paste0("output/output_", gsub(" ", "", meta$lake.name[i]), ".nc")
 
-
+# plot output
 plot_heatmap(ncdf) +
   theme_bw(base_size = 12) + 
   scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(11, "Spectral"))) + 
