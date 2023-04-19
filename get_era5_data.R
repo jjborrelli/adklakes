@@ -58,7 +58,7 @@ mlst <- c("2m_temperature", "2m_dewpoint_temperature",
           "large_scale_snowfall_rate_water_equivalent",
           "mean_surface_downward_short_wave_radiation_flux",
           "mean_surface_downward_long_wave_radiation_flux")
-for(x in mlst){
+for(x in mlst[-6]){
   mvar <- x
   for(i in 1992:2012){
     
