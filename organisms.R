@@ -3,7 +3,7 @@ library(dplyr)
 library(lubridate)
 library(tidyr)
 library(ggplot2)
-
+library(rLakeAnalyzer)
 
 phy <- adk_data("phyto")
 
@@ -127,12 +127,22 @@ bind_rows(zoo1, zoo2) %>%
 
 
 
-tdo %>% filter(lake.name %in% c("Willis")) %>% 
+tdo %>% filter(lake.name %in% c("Big Moose")) %>% 
   ggplot(aes(x = depth, y = temp)) + geom_line(aes(group = date)) + 
   geom_point() +
   scale_x_reverse() + 
   coord_flip() + 
   facet_grid(lake.name~month(date))
+
+tdo %>% group_by(lake.name, date, depth) %>% 
+  summarize(temp = mean(temp, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  group_by(lake.name, date) %>% 
+  summarize(thermo = thermo.depth(temp, depth),
+            diff = max(temp) - min(temp)) %>% 
+  mutate(date = ymd_hms(date)) %>%
+  filter(diff >= 2) %>% 
+  ggplot(aes(x = yday(date), y = thermo)) + geom_point() + facet_wrap(~lake.name)
 
 
 kdval <- secchi %>% group_by(lake.name, year) %>% 
