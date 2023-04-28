@@ -64,7 +64,7 @@ mlst <- c("2m_temperature",
           )
 for(x in mlst){
   mvar <- x
-  for(i in 1992:2012){
+  for(i in 2013:2022){
     
     request <- list(
       dataset_short_name = "reanalysis-era5-single-levels",
@@ -81,7 +81,7 @@ for(x in mlst){
       # area is specified as N, W, S, E
       #area = c(45.01157, -79.76718, 40.4852, -71.87756),
       area = c(44.87791, -75.31968, 43.05235, -73.29350),
-      target = paste0("data/era5/era5_nd_", mvar, "_", i,".nc")
+      target = paste0("data/era5/era5_", mvar, "_", i,".nc")
     )
     
     t1 <- Sys.time()
