@@ -52,19 +52,19 @@ t2 <- Sys.time()
 t2-t1
 
 
-mlst <- c(#"2m_temperature", 
-          #"2m_dewpoint_temperature", 
-          #"10m_u_component_of_wind",
-          #"10m_v_component_of_wind", 
-          "large_scale_rain_rate"#, 
-          #"surface_pressure",
+mlst <- c("2m_temperature", 
+          "2m_dewpoint_temperature",
+          "10m_u_component_of_wind",
+          "10m_v_component_of_wind",
+          "large_scale_rain_rate", 
+          "surface_pressure",
           #"large_scale_snowfall_rate_water_equivalent",
-          #"mean_surface_downward_short_wave_radiation_flux",
-          #"mean_surface_downward_long_wave_radiation_flux"
+          "mean_surface_downward_short_wave_radiation_flux",
+          "mean_surface_downward_long_wave_radiation_flux"
           )
 for(x in mlst){
   mvar <- x
-  for(i in 1994:2012){
+  for(i in 1992:2012){
     
     request <- list(
       dataset_short_name = "reanalysis-era5-single-levels",
@@ -72,7 +72,7 @@ for(x in mlst){
       format = "netcdf",
       variable = mvar,
       year = as.character(i),
-      month = stringr::str_pad(1:10,2,"left","0"),
+      month = stringr::str_pad(1:12,2,"left","0"),
       day = stringr::str_pad(1:31,2,"left","0"),
       time = c("00:00", "01:00", "02:00", "03:00", "04:00", "05:00",
                "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", 
@@ -81,7 +81,7 @@ for(x in mlst){
       # area is specified as N, W, S, E
       #area = c(45.01157, -79.76718, 40.4852, -71.87756),
       area = c(44.87791, -75.31968, 43.05235, -73.29350),
-      target = paste0("data/era5/era5_", mvar, "_", i,".nc")
+      target = paste0("data/era5/era5_nd_", mvar, "_", i,".nc")
     )
     
     t1 <- Sys.time()
@@ -109,7 +109,7 @@ library(ggplot2)
 library(lubridate)
 library(dplyr)
 
-files <- list.files("data/era5", pattern = "2m_dewpoint")
+files <- list.files("data/era5", pattern = "nd_2m_dewpoint")
 dpdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -129,7 +129,7 @@ dpdata <- data.table::rbindlist(dpdata)
 
 
 
-files <- list.files("data/era5", pattern = "2m_temperature")
+files <- list.files("data/era5", pattern = "nd_2m_temperature")
 tmpdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -158,7 +158,7 @@ tmpdata <- data.table::rbindlist(tmpdata)
 #   transition_time(datetime)
 
 
-files <- list.files("data/era5", pattern = "10m_u_component")
+files <- list.files("data/era5", pattern = "nd_10m_u_component")
 wndudata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -176,7 +176,7 @@ for(i in seq_along((files))){
 wndudata <- data.table::rbindlist(wndudata)
 
 
-files <- list.files("data/era5", pattern = "10m_v_component")
+files <- list.files("data/era5", pattern = "nd_10m_v_component")
 wndvdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -197,7 +197,7 @@ wndvdata <- data.table::rbindlist(wndvdata)
 
 
 
-files <- list.files("data/era5", pattern = "rain_rate")
+files <- list.files("data/era5", pattern = "nd_large_scale_rain_rate")
 raindata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -215,7 +215,7 @@ for(i in seq_along((files))){
 raindata <- data.table::rbindlist(raindata)
 
 
-files <- list.files("data/era5", pattern = "downward_long_wave")
+files <- list.files("data/era5", pattern = "nd_mean_surface_downward_long_wave")
 dwldata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -233,7 +233,7 @@ for(i in seq_along((files))){
 dwldata <- data.table::rbindlist(dwldata)
 
 
-files <- list.files("data/era5", pattern = "downward_short_wave")
+files <- list.files("data/era5", pattern = "nd_mean_surface_downward_short_wave")
 dwsdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -250,7 +250,7 @@ for(i in seq_along((files))){
 }
 dwsdata <- data.table::rbindlist(dwsdata)
 
-files <- list.files("data/era5", pattern = "surface_pressure")
+files <- list.files("data/era5", pattern = "nd_surface_pressure")
 spresdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -298,11 +298,13 @@ era5met <- dwsdata %>%
   mutate(wind_spd = sqrt(wind_v^2 + wind_u^2),
          temp_2m = temp_2m - 273.15, dewpt_2m = dewpt_2m - 273.15,
          relhum = 100 * ((exp((17.625 * dewpt_2m)/(243.04+dewpt_2m))/
-                            exp((17.625 * temp_2m)/(243.04+temp_2m))))) %>%
+                            exp((17.625 * temp_2m)/(243.04+temp_2m)))),
+         precip = (precip * 86400)/24) %>%
   select(lat, lon, datetime, downward_shortwave,downward_longwave, temp_2m,
          relhum, wind_spd, precip, surface_press)
 
 colnames(era5met) <- c("lat", "lon", colnames(met)[-8])
 
+# rbind(era5, era5met) %>% arrange(datetime)
 
 # arrow::write_parquet(era5met, sink = "data/era5_adk_1992-2012.parquet")
