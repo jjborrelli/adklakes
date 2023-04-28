@@ -14,6 +14,8 @@ meta <- meta[meta$max.depth > 5,]
 era5 <- arrow::read_parquet("data/era5_adk_1992-2012.parquet")
 tdo <- adk_data("tempdo")
 
+meta2 <- read.csv("C:/Users/borre/Desktop/adk.csv")[meta2$max.depth > 5,]
+
 # get secchi depths
 secchi <- adk_data("secchi")
 
@@ -93,9 +95,9 @@ for(i in 1:nrow(meta)){
   
   # params
   ## Assume circle for now
-  fetch <- sqrt((meta$SA.ha[i] * 1e5)/pi)*2 
-  blen <- sqrt((meta$SA.ha[i] * 1e5)/pi)*2
-  bwid <- sqrt((meta$SA.ha[i] * 1e5)/pi)*2
+  fetch <- meta2$Length_km[i] * 1000 #sqrt((meta$SA.ha[i] * 1e5)/pi)*2 
+  blen <- meta2$Length_km[i] * 1000 #sqrt((meta$SA.ha[i] * 1e5)/pi)*2
+  bwid <- meta2$Width_km[i] * 1000 #sqrt((meta$SA.ha[i] * 1e5)/pi)*2
   
   input_yaml_multiple(file = ler_yaml, fetch, key1 = "model_parameters", key2 = "FLake", key3 = "fetch_lk")
   input_yaml_multiple(file = ler_yaml, blen, key1 = "model_parameters", key2 = "GLM", key3 = "bsn_len")
@@ -118,7 +120,7 @@ t2 <- Sys.time()
 t2-t1
 
 # select lake with i
-i = 3
+i = 1
 # read in simulation data
 ncdf <- paste0("output/output_", gsub(" ", "", meta$lake.name[i]), ".nc")
 
