@@ -3,6 +3,7 @@ library(rLakeAnalyzer)
 library(ggplot2)
 library(patchwork)
 library(adklakedata)
+library(dplyr)
 
 t1 <- Sys.time()
 # set file name for ler yaml
@@ -10,11 +11,18 @@ ler_yaml <- "LakeEnsemblR.yaml"
 # only look at lakes with max depth greater than 5 m
 meta <- adk_data("meta")
 meta <- meta[meta$max.depth > 5,]
+era5 <- arrow::read_parquet("data/era5_adk_1992-2012.parquet")
+tdo <- adk_data("tempdo")
 
 # get secchi depths
 secchi <- adk_data("secchi")
 
 for(i in 1:nrow(meta)){
+  
+  rn <- which.min(as.matrix(dist(rbind(data.frame(lat = meta$lat[i], lon = meta$long[i]),
+                                       unique(dplyr::select(era5, lat, lon)))))[-1,1])
+  
+  latlon <- unique(dplyr::select(era5, lat, lon))[rn]
   
   ## Set location data (from `meta`)
   input_yaml_multiple(file = ler_yaml, meta$lake.name[i], key1 = "location", key2 = "name")
@@ -56,21 +64,22 @@ for(i in 1:nrow(meta)){
   
   
   ## Set meteorology driver file
-  met <- read.csv("LakeEnsemblR_meteo_standard_narr.csv")
+  #met <- read.csv("LakeEnsemblR_meteo_standard_narr.csv")
   # met2 <- met %>% filter(year(ymd_hms(datetime)) >= 1994, year(ymd_hms(datetime)) < 2001)
   # 
   # write.csv(met2, "LakeEnsemblr_meteo_narr_sub.csv", row.names = FALSE)
+  lakemets <- era5 %>% filter(lat == latlon$lat[1], lon == latlon$lon[1]) %>% select(-lat, - lon)
   
-  lakemets <- filter(meteo, lake.name == meta$lake.name[i], year(ymd_hms(date)) >= 1994, year(ymd_hms(date)) < 2001) %>% 
-    left_join(dplyr::select(met, datetime, Surface_Level_Barometric_Pressure_pascal), by = c("date" = "datetime")) %>% 
-    dplyr::select(-PERMANENT_ID, -lake.name)
-  colnames(lakemets) <- c("datetime",  
-                          "Shortwave_Radiation_Downwelling_wattPerMeterSquared",
-                          "Longwave_Radiation_Downwelling_wattPerMeterSquared", 
-                          "Air_Temperature_celsius", "Relative_Humidity_percent", 
-                          "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", 
-                          "Rainfall_millimeterPerHour", "Snowfall_millimeterPerHour", 
-                          "Surface_Level_Barometric_Pressure_pascal")
+  # lakemets <- filter(meteo, lake.name == meta$lake.name[i], year(ymd_hms(date)) >= 1994, year(ymd_hms(date)) < 2001) %>% 
+  #   left_join(dplyr::select(met, datetime, Surface_Level_Barometric_Pressure_pascal), by = c("date" = "datetime")) %>% 
+  #   dplyr::select(-PERMANENT_ID, -lake.name)
+  # colnames(lakemets) <- c("datetime",  
+  #                         "Shortwave_Radiation_Downwelling_wattPerMeterSquared",
+  #                         "Longwave_Radiation_Downwelling_wattPerMeterSquared", 
+  #                         "Air_Temperature_celsius", "Relative_Humidity_percent", 
+  #                         "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", 
+  #                         "Rainfall_millimeterPerHour", "Snowfall_millimeterPerHour", 
+  #                         "Surface_Level_Barometric_Pressure_pascal")
   
   write.csv(lakemets, "LakeEnsemblr_meteo_adk_sub.csv", row.names = FALSE)
   
