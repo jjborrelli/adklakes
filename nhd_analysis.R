@@ -421,3 +421,17 @@ t.test(hydroprop$length[grepl("Long", hydroprop$name)],
 
 t.test(testALL$SHAPE_Length[(grepl("Long",testALL$gnis_name))],
        testALL$SHAPE_Length[!(grepl("Long",testALL$gnis_name)) & !is.na(testALL$gnis_name)])
+
+
+
+############################################
+## DATA FROM MAX
+
+adkl <- st_read("data/Data/adk_lakes/", "adk_lakes")
+ggplot(adkl) + geom_sf() + 
+  geom_sf(data = filter(adkl, area_ha >= 1000), color = "blue", fill = "blue") + 
+  geom_sf(data = filter(adkl, area_ha >= 100, area_ha < 1000), color = "black", fill = "black")
+
+
+nhd <- st_read("data/Data/NHD/", "merged_NHD")
+ggplot(nhd) + geom_sf()
