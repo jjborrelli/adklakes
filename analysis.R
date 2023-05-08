@@ -72,6 +72,17 @@ rm(rot);rm(crust) # remove rot and crust from memory
 # check the year/month combinations
 table(zoop$year, zoop$month)
 
+
+# The 18 lakes that have all years of data
+lake18 <- c("Big Moose", "Brooktrout", "Cascade", "Dart", "G", 
+            "Indian", "Jockeybush", "Limekiln", "Moss", "North",
+            "Rondaxe", "Sagamore", "South", "Squaw")
+
+# The 5 phyla that are most common among phytoplankton
+phyla <- c("Bacillariophyta", "Chlorophyta", "Cryptophyta", "Cyanobacteria", "Ochrophyta")
+
+
+
 # collect zooplankton data by group
 zgrp <- zoop %>% 
   mutate(Group = case_when(Taxa == "Calanoid" ~ "Calanoid",  # convert Group == Copepod to Calanoid
@@ -98,15 +109,6 @@ filter(phyt, lake.name == "Big Moose") %>% group_by(date, year, month, day, Phyl
   ggplot(aes(x = date, y = log10(biovol))) + geom_point() + 
   geom_smooth(method = "gam", formula = y ~ s(x)) + 
   facet_grid(.~Phylum) + theme_bw() + theme(panel.grid = element_blank()) 
-
-
-# The 18 lakes that have all years of data
-lake18 <- c("Big Moose", "Brooktrout", "Cascade", "Dart", "G", 
-            "Indian", "Jockeybush", "Limekiln", "Moss", "North",
-            "Rondaxe", "Sagamore", "South", "Squaw")
-
-# The 5 phyla that are most common among phytoplankton
-phyla <- c("Bacillariophyta", "Chlorophyta", "Cryptophyta", "Cyanobacteria", "Ochrophyta")
 
 
 # just look at nutrients and phytoplankton from Big Moose
@@ -137,6 +139,20 @@ filter(phyt, lake.name %in% lake18) %>%
   facet_grid(Phylum~., scales = "free_y") +
   theme_bw() + theme(panel.grid = element_blank()) #+
   #labs(y = "Chlorophyll a (ug/L)", x = "Log10(Cells per mL)")
+
+# Here is a plot of the relationship between chlorophyll and phytoplankton 
+filter(phyt, lake.name %in% lake18) %>% 
+  group_by(lake.name, date, year, month, day) %>% 
+  summarize(biovol = sum(biovol.um3.per.ml)) %>% ungroup() %>%  # here and elsewhere use this for biovolume
+  #summarize(biovol = sum(cells.per.ml)) %>% ungroup() %>%  # here and elsewhere use this for cells per ml
+  left_join(nut, by = c("lake.name", "date", "year", "month", "day")) %>% 
+  # filter(Phylum %in% phyla) %>% 
+  ggplot(aes(x = (chl.a.ug.L), y = log10(biovol))) + geom_point() + 
+  geom_smooth() + 
+  # facet_grid(Phylum~., scales = "free_y") +
+  theme_bw() + theme(panel.grid = element_blank()) #+
+#labs(y = "Chlorophyll a (ug/L)", x = "Log10(Cells per mL)")
+
 
 # Fitting linear models using total phosphorus, total nitrogen, and chlorophyll to predict biovolume (or cells)
 # one model for each of the 5 phyla
