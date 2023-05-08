@@ -24,7 +24,7 @@ library(patchwork)
 
 Here I provide an overview of data available to analyze for the SCALE project. 
 
-Future SCALE sampling effors will be tiered with different intensity levels depending its level of priority. All lakes will be sampled using remote sensing, 300 will be sampled once for basic characteristics, 50 will be sampled at intermediate levels (more variables, several sampling trips), and 25 will be sampled intensely (i.e., monitoring buoys, multiple sampling trips, etc) Our goal is to categorize which lakes should be sampled with which degree of intensity. We want to ensure that each sampling intensity level covers a range of waterbody types and characteristics found in the Adirondacks.  
+Future SCALE sampling efforts will be tiered with different intensity levels depending its level of priority. All lakes will be sampled using remote sensing, 300 will be sampled once for basic characteristics, 50 will be sampled at intermediate levels (more variables, several sampling trips), and 25 will be sampled intensely (i.e., monitoring buoys, multiple sampling trips, etc) Our goal is to categorize which lakes should be sampled with which degree of intensity. We want to ensure that each sampling intensity level covers a range of waterbody types and characteristics found in the Adirondacks.  
 
 # Waterbodies in the Adirondack Park
 
@@ -175,6 +175,14 @@ ifishSUM <- als_indfish %>%
   group_by(PONDNO, STATION, ADATE, SPECIES) %>% 
   summarize(n = n(), len = mean(LENGTH), wgt = mean(WEIGHT)) %>% 
   left_join(fshCODE, by = c("SPECIES" = "SPP_CODE")) %>% arrange(desc(n))
+```
+
+### 1992 ALTM
+
+[ALTM data](https://portal.edirepository.org/nis/mapbrowse?packageid=edi.37.1)
+
+```{r}
+altm <- read.csv("data/NY_ADIRONDACK_1992.csv")
 ```
 
 
