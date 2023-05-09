@@ -1,6 +1,7 @@
 
 # https://cran.rstudio.com/web/packages/nhdR/index.html
 library(nhdR)
+library(FedData)
 library(sf)
 library(dplyr)
 library(ggplot2)
@@ -10,6 +11,16 @@ states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 # 
 # https://geodata.lib.utexas.edu/catalog/cugir-007739
 adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline")
+adkalt2 <- st_transform(adkalt, "WGS84")
+
+
+nhdadk <- get_nhd(adkalt2, label = "adk", nhdplus = TRUE, extraction.dir = "data/")
+
+NHD <- get_nhd(
+  template = FedData::meve,
+  label = "meve"
+)
+NHD
 # 
 # install.packages("nhdR")
 # 
@@ -19,6 +30,34 @@ adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueli
 # testALL <- nhd_load("NY", "NHDWaterbody")
 # 
 # st_crop(test,apa) %>% saveRDS("./nhd/adk_nhd.rds")
+# 
+# # nhd_plus_query(poly = adkalt2)
+# nhd_plus_query(poly = adkalt2,
+#                dsn = c("NHDWaterbody", "NHDFlowLine"), 
+#                buffer_dist = units::as_units(4.75, "km"))
+# test <- nhd_plus_load(2, dsn = "NHDWaterbody")
+# test1 <- nhd_plus_load(4, dsn = "NHDWaterbody")
+# 
+# nhd_plus_get(
+#   vpu = 2,
+#   component = "NHDSnapshot",
+#   force_dl = FALSE,
+#   force_unzip = FALSE,
+#   temporary = TRUE
+# )
+# 
+# 
+# ggplot() +
+#   geom_sf(data = test) +
+#   geom_sf(data = test1) +
+#   geom_sf(data = adkalt2, fill = NA) + 
+#   coord_sf(xlim = c(-75.5, -73.2), ylim = c(43.05, 44.9))
+# 
+# test2 <- rbind(test, test1)
+# sf_use_s2(FALSE)
+# test3 <- st_intersection(st_transform((test2), "WGS84"), adkalt2)
+# 
+# ggplot(test3) + geom_sf()
 
 testwbd <- nhd_load("NY", "WBDHU12")
 testwbd10 <- nhd_load("NY", "WBDHU10")
@@ -428,10 +467,66 @@ t.test(testALL$SHAPE_Length[(grepl("Long",testALL$gnis_name))],
 ## DATA FROM MAX
 
 adkl <- st_read("data/Data/adk_lakes/", "adk_lakes")
-ggplot(adkl) + geom_sf() + 
-  geom_sf(data = filter(adkl, area_ha >= 1000), color = "blue", fill = "blue") + 
-  geom_sf(data = filter(adkl, area_ha >= 100, area_ha < 1000), color = "black", fill = "black")
+ggplot((st_set_crs(adkl, "WGS84"))) + geom_sf() + 
+  geom_sf(data = filter((st_set_crs(adkl, "WGS84")), area_ha >= 1000), color = "blue", fill = "blue") + 
+  geom_sf(data = filter((st_set_crs(adkl, "WGS84")), area_ha >= 100, area_ha < 1000), 
+          color = "black", fill = "black") + 
+  geom_sf(data = adkalt2, fill = "NA")
 
+adkl <- st_set_crs(adkl, "WGS84")
 
-nhd <- st_read("data/Data/NHD/", "merged_NHD")
+# nhd <- st_read("data/Data/NHD/", "merged_NHD")
 ggplot(nhd) + geom_sf()
+
+nhdadk <- st_intersection(nhd, st_transform(adkalt, st_crs(nhd)))
+
+adkel <- terra::rast("data/Data/Elevation/elev_mosaic.tif")
+adkel
+plot(adkel)
+
+library(terra)
+
+elev <- terra::crop(adkel,st_transform(adkalt, crs = st_crs(adkel))) %>% 
+  terra::mask(st_transform(adkalt, crs = st_crs(adkel))) %>% 
+  as.data.frame(xy = TRUE)
+
+# elev2 <- as.data.frame(elev, xy = TRUE)
+
+# ggplot(elev) +
+#   geom_raster(aes(x = x, y = y, fill = elev_mosaic)) +
+#   scale_fill_viridis_c() +
+#   theme_void()
+
+
+
+# for(i in 1:nrow(adkl2)){
+#   xval <- unique(elev$x[elev$x < adkl2[i,1]+0.001 & elev$x > adkl2[i,1]-0.001])
+#   yval <- unique(elev$y[elev$y < adkl2[i,2]+0.001 & elev$y > adkl2[i,2]-0.001])
+#   
+#   xyval <- expand.grid(xval, yval)
+#   eclose <- xyval[which.min(as.matrix(dist(rbind(adkl2[i,], xyval)))[-1,1]),]
+#   
+#   e
+#   
+# }
+
+
+pdf <- data.frame(PONDNO = stringr::str_pad(altm$ALSC_Site_ID, 6, "left", "0")) %>% unique()
+pdf
+
+als_location %>% full_join(pdf, by = "PONDNO")
+
+adkl
+
+elev_est <- c()
+for(i in 1:nrow(adkl)){
+  shp <- adkl[i, ]
+  elev <- terra::crop(adkel,st_transform(shp, crs = st_crs(adkel))) %>% 
+    terra::mask(st_transform(shp, crs = st_crs(adkel))) %>% 
+    as.data.frame(xy = TRUE)
+  elev_est[i] <- mean(elev$elev_mosaic)
+  print(i)
+}
+
+#saveRDS(adkl, "data/adklake.rds")
+
