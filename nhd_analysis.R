@@ -530,3 +530,90 @@ for(i in 1:nrow(adkl)){
 
 #saveRDS(adkl, "data/adklake.rds")
 
+
+adkl <- readRDS("data/adklake.rds")
+adkl
+meta <- adklakedata::adk_data("meta")
+aeap <- list()
+for(i in 1:nrow(meta)){
+  aeap[[i]] <- dplyr::filter(adkl, grepl(meta$lake.name[i], GNIS_Name))
+}
+sapply(aeap, dim)
+
+# 3, 7, 10, 11, 14, 16, 19, 20, 21, 23, 27, 28
+i = 16
+ggplot(aeap[[i]][2,]) + geom_sf(aes(fill = GNIS_ID)) + 
+  geom_point(aes(x = meta[i,"long"], y = meta[i, "lat"]))
+
+ggplot(filter(aeap[[i]], GNIS_ID == "00945919")) + geom_sf(aes(fill = GNIS_ID)) + 
+  geom_point(aes(x = meta[i,"long"], y = meta[i, "lat"])) 
+
+st_contains(aeap[[i]],st_point(unlist(meta[i, c("long", "lat")])))
+
+do.call(rbind, aeap[-c(3, 7, 10, 11, 14, 16, 19, 20, 21, 23, 27, 28)])$GNIS_ID
+
+aeap[[i]][9,]
+# filter(adkl, area_ha < 2, area_ha >1.5)[17,]
+
+gnis <- c("00969881", 
+  "00962096",
+  "00962198",
+  "00944883", 
+  "00962848", 
+  "00963223", 
+  "00965801",
+  "00966164", 
+  "00966171",
+  "00970849",
+  "00971326",
+  "00954046", 
+  "00971395",
+  "00971461",
+  "00945919", 
+  #"", 
+  "00945948",
+  "00947325",
+  "00948043",
+  "00955344",
+  "00950828",
+  "00951547",
+  "00953670",
+  #"",
+  "00955975", 
+  "00957080", 
+  "00957138",
+  "00957758",
+  "00958838"
+)
+
+dput(filter(adkl, GNIS_ID %in% gnis)$Permanent_)
+
+
+perm <- c("89365069", "53540671", "47724773", "47723283", "131843739", 
+  "131845836", "131844130", "131844009", "131844150", "131845717", 
+  "131845583", "131844984", "131843304", "131844064", "131845641", 
+  "131844377", "131845828", "131845587", "131846593", "131846580", 
+  "131844719", "131843856", "89363813", "132437639", "133099321", 
+  "132437600", "132437679", "133099412")
+
+perm %in% "132433716"
+ggplot(filter(adkl, Permanent_ %in% perm)) + 
+  geom_point(data = meta, aes(x = long, y = lat)) +
+  geom_sf(fill = "blue") +
+  geom_sf(data = adkalt, fill = NA) +
+  coord_sf(xlim = c(-75.2, -74.5), ylim = c(43.3, 44))
+  #+ facet_wrap(~Permanent_, ncol = 10)
+
+
+cslp <- select(cslap_adk, PName, geometry) %>% unique() 
+
+test <- st_contains(adkl, cslp$geometry[1], sparse = FALSE)
+test
+
+
+ggplot(adkl[grep("Adirondack Lake", adkl$GNIS_Name),]) + geom_sf() +
+  geom_sf(data = cslp[1,]) + 
+  coord_sf(xlim = c(-74.3, -74.2), ylim = c(43.76, 43.8))
+
+
+cslp$PName %in% adkl$GNIS_Name
