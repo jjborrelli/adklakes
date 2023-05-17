@@ -599,7 +599,7 @@ perm <- c("89365069", "53540671", "47724773", "47723283", "131843739",
 perm %in% "132433716"
 ggplot(filter(adkl, Permanent_ %in% perm)) + 
   geom_point(data = meta, aes(x = long, y = lat)) +
-  geom_sf(fill = "blue") +
+  geom_sf(fill = NA) +
   geom_sf(data = adkalt, fill = NA) +
   coord_sf(xlim = c(-75.2, -74.5), ylim = c(43.3, 44))
   #+ facet_wrap(~Permanent_, ncol = 10)
@@ -607,7 +607,7 @@ ggplot(filter(adkl, Permanent_ %in% perm)) +
 
 cslp <- select(cslap_adk, PName, geometry) %>% unique() 
 
-test <- st_contains(adkl, cslp$geometry[1], sparse = FALSE)
+test <- st_contains(adkl, cslp$geometry, sparse = FALSE)
 test
 
 
@@ -617,3 +617,24 @@ ggplot(adkl[grep("Adirondack Lake", adkl$GNIS_Name),]) + geom_sf() +
 
 
 cslp$PName %in% adkl$GNIS_Name
+
+
+adkl <- readRDS("Data/adklake.rds")
+adkl
+adkl$aeap <- 0
+adkl$aeap[adkl$Permanent_ %in% perm] <- 1
+sum(adkl$aeap)
+
+
+la1 <- lagos_adk %>% select(nhdid, programid, geometry) %>% unique()
+dist(la1[1,], adkl)
+
+sf_use_s2(FALSE)
+
+test <- st_contains(st_zm(adkl), la1$geometry, sparse = FALSE)
+con <- apply(test, 2, which)
+table(sapply(con, length))
+la1$nhdid[which(sapply(con, length) == 2)]
+
+filter(lagos_adk, nhdid %in% la1$nhdid[which(sapply(con, length) == 2)])
+unique(filter(lagos_adk, nhdid %in% la1$nhdid[which(sapply(con, length) == 2)])$lagosname1)
