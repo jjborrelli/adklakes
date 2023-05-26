@@ -14,7 +14,8 @@ meta <- meta[meta$max.depth > 5,]
 era5 <- arrow::read_parquet("data/era5_adk_1992-2012.parquet")
 tdo <- adk_data("tempdo")
 
-meta2 <- read.csv("C:/Users/borre/Desktop/adk.csv")[meta2$max.depth > 5,]
+meta2 <- read.csv("C:/Users/borre/Desktop/adk.csv")
+meta2 <- meta2[meta2$max.depth > 5,]
 
 # get secchi depths
 secchi <- adk_data("secchi")
@@ -24,7 +25,7 @@ for(i in 1:nrow(meta)){
   rn <- which.min(as.matrix(dist(rbind(data.frame(lat = meta$lat[i], lon = meta$long[i]),
                                        unique(dplyr::select(era5, lat, lon)))))[-1,1])
   
-  latlon <- unique(dplyr::select(era5, lat, lon))[rn]
+  latlon <- unique(dplyr::select(era5, lat, lon))[rn,]
   
   ## Set location data (from `meta`)
   input_yaml_multiple(file = ler_yaml, meta$lake.name[i], key1 = "location", key2 = "name")
@@ -63,6 +64,15 @@ for(i in 1:nrow(meta)){
   
   ## set end date
   input_yaml_multiple(file = ler_yaml, "1999-12-31 00:00:00", key1 = "time", key2 = "stop")
+  
+  ## Set observations
+  ler_obs <- tdo %>% filter(lake.name == meta$lake.name[i], !is.na(temp)) %>% 
+    select(datetime = date, Depth_meter = depth, Water_Temperature_celsius = temp)
+  
+  
+  write.csv(ler_obs, "LakeEnsemblR_wtemp_profile_standard.csv")
+  
+  input_yaml_multiple(file = ler_yaml, "LakeEnsemblR_wtemp_profile_standard.csv", key1 = "observations", key2 = "temperature", key3 = "file")
   
   
   ## Set meteorology driver file
@@ -113,14 +123,18 @@ for(i in 1:nrow(meta)){
   # run model ensemble
   run_ensemble(config_file = config_file, model = model, parallel = TRUE)
   
+  cali_res <- cali_ensemble(config_file = config_file, num = 200, cmethod = "LHC",
+                            parallel = FALSE, model = model, 
+                            out_f = paste("cali", meta$lake.name[i], sep = "_"))
   
+  saveRDS(cali_res, paste("cali_", meta$lake.name[i], ".rds", sep = ""))
 }
 
 t2 <- Sys.time()
 t2-t1
 
 # select lake with i
-i = 1
+i = 4
 # read in simulation data
 ncdf <- paste0("output/output_", gsub(" ", "", meta$lake.name[i]), ".nc")
 
@@ -129,6 +143,23 @@ plot_heatmap(ncdf) +
   theme_bw(base_size = 12) + 
   scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(11, "Spectral"))) + 
   labs(x = "Date", y = "Depth (m)", color = "°C", title = meta$lake.name[i])
+
+
+calc_fit(ncdf = ncdf, model = model, var = "temp")
+analyse_df <- analyse_ncdf(ncdf = ncdf, model = model, spin_up = NULL, drho = 0.1)
+# Example plot the summer stratification period
+strat_df <- analyse_df$strat
+ggplot(strat_df, aes(model, TotStratDur)) +
+  geom_col() +
+  ylab("Total stratification duration [days]") +
+  xlab("") +
+  theme_classic()
+
+
+tdo %>% filter(lake.name == "Rondaxe") %>% 
+  ggplot(aes(x = depth, y = temp)) + geom_point() + coord_flip() + scale_x_reverse()
+
+
 
 
 

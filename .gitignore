@@ -54,3 +54,5 @@ LakeChamplain/
 *.jpg
 *.nc
 LakeEnsemblR.yaml
+cali_*
+LER_CNFG_TMP.yaml

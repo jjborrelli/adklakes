@@ -52,11 +52,11 @@ t2 <- Sys.time()
 t2-t1
 
 
-mlst <- c("2m_temperature", 
-          "2m_dewpoint_temperature",
-          "10m_u_component_of_wind",
-          "10m_v_component_of_wind",
-          "large_scale_rain_rate", 
+mlst <- c(#"2m_temperature", 
+          #"2m_dewpoint_temperature",
+          #"10m_u_component_of_wind",
+          #"10m_v_component_of_wind",
+          #"large_scale_rain_rate", 
           "surface_pressure",
           #"large_scale_snowfall_rate_water_equivalent",
           "mean_surface_downward_short_wave_radiation_flux",
