@@ -1,6 +1,7 @@
 
 # https://cran.rstudio.com/web/packages/nhdR/index.html
 library(nhdR)
+library(FedData)
 library(sf)
 library(dplyr)
 library(ggplot2)
@@ -10,6 +11,16 @@ states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 # 
 # https://geodata.lib.utexas.edu/catalog/cugir-007739
 adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline")
+adkalt2 <- st_transform(adkalt, "WGS84")
+
+
+nhdadk <- get_nhd(adkalt2, label = "adk", nhdplus = TRUE, extraction.dir = "data/")
+
+NHD <- get_nhd(
+  template = FedData::meve,
+  label = "meve"
+)
+NHD
 # 
 # install.packages("nhdR")
 # 
@@ -19,6 +30,34 @@ adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueli
 # testALL <- nhd_load("NY", "NHDWaterbody")
 # 
 # st_crop(test,apa) %>% saveRDS("./nhd/adk_nhd.rds")
+# 
+# # nhd_plus_query(poly = adkalt2)
+# nhd_plus_query(poly = adkalt2,
+#                dsn = c("NHDWaterbody", "NHDFlowLine"), 
+#                buffer_dist = units::as_units(4.75, "km"))
+# test <- nhd_plus_load(2, dsn = "NHDWaterbody")
+# test1 <- nhd_plus_load(4, dsn = "NHDWaterbody")
+# 
+# nhd_plus_get(
+#   vpu = 2,
+#   component = "NHDSnapshot",
+#   force_dl = FALSE,
+#   force_unzip = FALSE,
+#   temporary = TRUE
+# )
+# 
+# 
+# ggplot() +
+#   geom_sf(data = test) +
+#   geom_sf(data = test1) +
+#   geom_sf(data = adkalt2, fill = NA) + 
+#   coord_sf(xlim = c(-75.5, -73.2), ylim = c(43.05, 44.9))
+# 
+# test2 <- rbind(test, test1)
+# sf_use_s2(FALSE)
+# test3 <- st_intersection(st_transform((test2), "WGS84"), adkalt2)
+# 
+# ggplot(test3) + geom_sf()
 
 testwbd <- nhd_load("NY", "WBDHU12")
 testwbd10 <- nhd_load("NY", "WBDHU10")
@@ -421,3 +460,181 @@ t.test(hydroprop$length[grepl("Long", hydroprop$name)],
 
 t.test(testALL$SHAPE_Length[(grepl("Long",testALL$gnis_name))],
        testALL$SHAPE_Length[!(grepl("Long",testALL$gnis_name)) & !is.na(testALL$gnis_name)])
+
+
+
+############################################
+## DATA FROM MAX
+
+adkl <- st_read("data/Data/adk_lakes/", "adk_lakes")
+ggplot((st_set_crs(adkl, "WGS84"))) + geom_sf() + 
+  geom_sf(data = filter((st_set_crs(adkl, "WGS84")), area_ha >= 1000), color = "blue", fill = "blue") + 
+  geom_sf(data = filter((st_set_crs(adkl, "WGS84")), area_ha >= 100, area_ha < 1000), 
+          color = "black", fill = "black") + 
+  geom_sf(data = adkalt2, fill = "NA")
+
+adkl <- st_set_crs(adkl, "WGS84")
+
+# nhd <- st_read("data/Data/NHD/", "merged_NHD")
+ggplot(nhd) + geom_sf()
+
+nhdadk <- st_intersection(nhd, st_transform(adkalt, st_crs(nhd)))
+
+adkel <- terra::rast("data/Data/Elevation/elev_mosaic.tif")
+adkel
+plot(adkel)
+
+library(terra)
+
+elev <- terra::crop(adkel,st_transform(adkalt, crs = st_crs(adkel))) %>% 
+  terra::mask(st_transform(adkalt, crs = st_crs(adkel))) %>% 
+  as.data.frame(xy = TRUE)
+
+# elev2 <- as.data.frame(elev, xy = TRUE)
+
+# ggplot(elev) +
+#   geom_raster(aes(x = x, y = y, fill = elev_mosaic)) +
+#   scale_fill_viridis_c() +
+#   theme_void()
+
+
+
+# for(i in 1:nrow(adkl2)){
+#   xval <- unique(elev$x[elev$x < adkl2[i,1]+0.001 & elev$x > adkl2[i,1]-0.001])
+#   yval <- unique(elev$y[elev$y < adkl2[i,2]+0.001 & elev$y > adkl2[i,2]-0.001])
+#   
+#   xyval <- expand.grid(xval, yval)
+#   eclose <- xyval[which.min(as.matrix(dist(rbind(adkl2[i,], xyval)))[-1,1]),]
+#   
+#   e
+#   
+# }
+
+
+pdf <- data.frame(PONDNO = stringr::str_pad(altm$ALSC_Site_ID, 6, "left", "0")) %>% unique()
+pdf
+
+als_location %>% full_join(pdf, by = "PONDNO")
+
+adkl
+
+elev_est <- c()
+for(i in 1:nrow(adkl)){
+  shp <- adkl[i, ]
+  elev <- terra::crop(adkel,st_transform(shp, crs = st_crs(adkel))) %>% 
+    terra::mask(st_transform(shp, crs = st_crs(adkel))) %>% 
+    as.data.frame(xy = TRUE)
+  elev_est[i] <- mean(elev$elev_mosaic)
+  print(i)
+}
+
+#saveRDS(adkl, "data/adklake.rds")
+
+
+adkl <- readRDS("data/adklake.rds")
+adkl
+meta <- adklakedata::adk_data("meta")
+aeap <- list()
+for(i in 1:nrow(meta)){
+  aeap[[i]] <- dplyr::filter(adkl, grepl(meta$lake.name[i], GNIS_Name))
+}
+sapply(aeap, dim)
+
+# 3, 7, 10, 11, 14, 16, 19, 20, 21, 23, 27, 28
+i = 16
+ggplot(aeap[[i]][2,]) + geom_sf(aes(fill = GNIS_ID)) + 
+  geom_point(aes(x = meta[i,"long"], y = meta[i, "lat"]))
+
+ggplot(filter(aeap[[i]], GNIS_ID == "00945919")) + geom_sf(aes(fill = GNIS_ID)) + 
+  geom_point(aes(x = meta[i,"long"], y = meta[i, "lat"])) 
+
+st_contains(aeap[[i]],st_point(unlist(meta[i, c("long", "lat")])))
+
+do.call(rbind, aeap[-c(3, 7, 10, 11, 14, 16, 19, 20, 21, 23, 27, 28)])$GNIS_ID
+
+aeap[[i]][9,]
+# filter(adkl, area_ha < 2, area_ha >1.5)[17,]
+
+gnis <- c("00969881", 
+  "00962096",
+  "00962198",
+  "00944883", 
+  "00962848", 
+  "00963223", 
+  "00965801",
+  "00966164", 
+  "00966171",
+  "00970849",
+  "00971326",
+  "00954046", 
+  "00971395",
+  "00971461",
+  "00945919", 
+  #"", 
+  "00945948",
+  "00947325",
+  "00948043",
+  "00955344",
+  "00950828",
+  "00951547",
+  "00953670",
+  #"",
+  "00955975", 
+  "00957080", 
+  "00957138",
+  "00957758",
+  "00958838"
+)
+
+dput(filter(adkl, GNIS_ID %in% gnis)$Permanent_)
+
+
+perm <- c("89365069", "53540671", "47724773", "47723283", "131843739", 
+  "131845836", "131844130", "131844009", "131844150", "131845717", 
+  "131845583", "131844984", "131843304", "131844064", "131845641", 
+  "131844377", "131845828", "131845587", "131846593", "131846580", 
+  "131844719", "131843856", "89363813", "132437639", "133099321", 
+  "132437600", "132437679", "133099412")
+
+perm %in% "132433716"
+ggplot(filter(adkl, Permanent_ %in% perm)) + 
+  geom_point(data = meta, aes(x = long, y = lat)) +
+  geom_sf(fill = NA) +
+  geom_sf(data = adkalt, fill = NA) +
+  coord_sf(xlim = c(-75.2, -74.5), ylim = c(43.3, 44))
+  #+ facet_wrap(~Permanent_, ncol = 10)
+
+
+cslp <- select(cslap_adk, PName, geometry) %>% unique() 
+
+test <- st_contains(adkl, cslp$geometry, sparse = FALSE)
+test
+
+
+ggplot(adkl[grep("Adirondack Lake", adkl$GNIS_Name),]) + geom_sf() +
+  geom_sf(data = cslp[1,]) + 
+  coord_sf(xlim = c(-74.3, -74.2), ylim = c(43.76, 43.8))
+
+
+cslp$PName %in% adkl$GNIS_Name
+
+
+adkl <- readRDS("Data/adklake.rds")
+adkl
+adkl$aeap <- 0
+adkl$aeap[adkl$Permanent_ %in% perm] <- 1
+sum(adkl$aeap)
+
+
+la1 <- lagos_adk %>% select(nhdid, programid, geometry) %>% unique()
+dist(la1[1,], adkl)
+
+sf_use_s2(FALSE)
+
+test <- st_contains(st_zm(adkl), la1$geometry, sparse = FALSE)
+con <- apply(test, 2, which)
+table(sapply(con, length))
+la1$nhdid[which(sapply(con, length) == 2)]
+
+filter(lagos_adk, nhdid %in% la1$nhdid[which(sapply(con, length) == 2)])
+unique(filter(lagos_adk, nhdid %in% la1$nhdid[which(sapply(con, length) == 2)])$lagosname1)
