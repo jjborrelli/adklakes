@@ -123,8 +123,8 @@ for(i in 1:nrow(meta)){
   # run model ensemble
   run_ensemble(config_file = config_file, model = model, parallel = TRUE)
   
-  cali_res <- cali_ensemble(config_file = config_file, num = 200, cmethod = "LHC",
-                            parallel = FALSE, model = model, 
+  cali_res <- cali_ensemble(config_file = config_file, num = 2000, cmethod = "LHC",
+                            parallel = TRUE, model = model, 
                             out_f = paste("cali", meta$lake.name[i], sep = "_"))
   
   saveRDS(cali_res, paste("cali_", meta$lake.name[i], ".rds", sep = ""))
@@ -161,5 +161,14 @@ tdo %>% filter(lake.name == "Rondaxe") %>%
 
 
 
+c1 <- readRDS("cali_Big Moose.rds")
+min(read.csv(c1$Simstrat$results)$rmse)
 
+rmse <- lapply(list.files(pattern = "cali_")[grepl(".rds", list.files(pattern = "cali_"))], function(y){
+  c1 <- readRDS(y)
+  sapply(c1, function(x){
+    min(read.csv(x$results)$rmse)
+  })
+}) 
 
+boxplot(do.call(rbind, rmse))
