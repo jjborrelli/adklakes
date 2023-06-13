@@ -20,6 +20,7 @@ meta2 <- meta2[meta2$max.depth > 5,]
 # get secchi depths
 secchi <- adk_data("secchi")
 
+# recently stopped after i = 16
 for(i in 1:nrow(meta)){
   
   rn <- which.min(as.matrix(dist(rbind(data.frame(lat = meta$lat[i], lon = meta$long[i]),
