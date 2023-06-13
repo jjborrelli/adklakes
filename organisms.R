@@ -128,7 +128,7 @@ bind_rows(zoo1, zoo2) %>%
 
 
 tdo %>% filter(lake.name %in% c("Big Moose")) %>% 
-  ggplot(aes(x = depth, y = temp)) + geom_line(aes(group = date)) + 
+  ggplot(aes(x = depth, y = doobs)) + geom_line(aes(group = date)) + 
   geom_point() +
   scale_x_reverse() + 
   coord_flip() + 
