@@ -13,7 +13,6 @@ states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline")
 adkalt2 <- st_transform(adkalt, "WGS84")
 
-
 nhdadk <- get_nhd(adkalt2, label = "adk", nhdplus = TRUE, extraction.dir = "data/")
 
 NHD <- get_nhd(
@@ -123,7 +122,7 @@ library(terra)
 nlcd <- get_nlcd(
   template = adkalt,
   label = "adk",
-  year = 2019,
+  year = 2001,
   dataset = c("landcover", "impervious", "canopy"),
   landmass = "L48",
   extraction.dir = "./FedData/",
@@ -133,7 +132,7 @@ nlcd <- get_nlcd(
 
 plot(nlcd)
 
-adknlcd <- st_transform(adkalt, st_crs(nlcd))
+adknlcd <- st_transform(lgws, st_crs(nlcd))
 nlcd2 <- crop(nlcd, adknlcd)
 nlcd3 <- mask(nlcd2, adknlcd)
 # 
@@ -168,11 +167,12 @@ colorcombos <- arrange(colorcombos, Class_Class)
 
 nlcdd$Class_Class <- factor(nlcdd$Class_Class, levels = classlevels) 
 
+
 lcplot <- ggplot((nlcdd), aes(x = x, y = y)) + 
   geom_raster(aes(fill = Class_Class)) + 
   scale_fill_manual(values = colorcombos$Class_Color, label = colorcombos$Class_Class) +
   coord_sf(crs = crs(nlcd3)) + 
-  theme_minimal() + theme(legend.position = "none") + 
+  theme_void() + theme(legend.position = "none") + 
   labs(x = "", y = "", fill = "") #+
   # ggspatial::annotation_north_arrow(style = north_arrow_nautical(), 
   #                                   pad_y = unit(1, "cm"), pad_x = unit(1.2, "cm")) + 
@@ -466,21 +466,21 @@ t.test(testALL$SHAPE_Length[(grepl("Long",testALL$gnis_name))],
 ############################################
 ## DATA FROM MAX
 
-adkl <- st_read("data/Data/adk_lakes/", "adk_lakes")
-ggplot((st_set_crs(adkl, "WGS84"))) + geom_sf() + 
-  geom_sf(data = filter((st_set_crs(adkl, "WGS84")), area_ha >= 1000), color = "blue", fill = "blue") + 
-  geom_sf(data = filter((st_set_crs(adkl, "WGS84")), area_ha >= 100, area_ha < 1000), 
+adkl <- st_read("data/ADK_Data/Data/adk_lakes/", "adk_lakes")
+ggplot(st_zm(st_set_crs(adkl, "WGS84"))) + geom_sf() + 
+  geom_sf(data = filter(st_zm(st_set_crs(adkl, "WGS84")), area_ha >= 1000), color = "blue", fill = "blue") + 
+  geom_sf(data = filter(st_zm(st_set_crs(adkl, "WGS84")), area_ha >= 100, area_ha < 1000), 
           color = "black", fill = "black") + 
   geom_sf(data = adkalt2, fill = "NA")
 
 adkl <- st_set_crs(adkl, "WGS84")
 
-# nhd <- st_read("data/Data/NHD/", "merged_NHD")
-ggplot(nhd) + geom_sf()
+# nhd <- st_read("data/ADK_Data/Data/NHD/", "merged_NHD")
+ggplot(st_zm(nhd)) + geom_sf()
 
-nhdadk <- st_intersection(nhd, st_transform(adkalt, st_crs(nhd)))
+nhdadk <- st_intersection(st_zm(nhd), st_transform(adkalt, st_crs(st_zm(nhd))))
 
-adkel <- terra::rast("data/Data/Elevation/elev_mosaic.tif")
+adkel <- terra::rast("data/ADK_Data/Data/Elevation/elev_mosaic.tif")
 adkel
 plot(adkel)
 
@@ -528,10 +528,11 @@ for(i in 1:nrow(adkl)){
   print(i)
 }
 
-#saveRDS(adkl, "data/adklake.rds")
+adkl$elevation_est <- elev_est
+#saveRDS(adkl, "data/adklake2.rds")
 
 
-adkl <- readRDS("data/adklake.rds")
+adkl <- readRDS("data/adklake2.rds")
 adkl
 meta <- adklakedata::adk_data("meta")
 aeap <- list()
@@ -605,8 +606,10 @@ ggplot(filter(adkl, Permanent_ %in% perm)) +
   #+ facet_wrap(~Permanent_, ncol = 10)
 
 
-cslp <- select(cslap_adk, PName, geometry) %>% unique() 
+cslp <- dplyr::select(cslap_adk, PName, geometry) %>% unique() 
 
+
+sf_use_s2(FALSE)
 test <- st_contains(adkl, cslp$geometry, sparse = FALSE)
 test
 
@@ -626,7 +629,7 @@ adkl$aeap[adkl$Permanent_ %in% perm] <- 1
 sum(adkl$aeap)
 
 
-la1 <- lagos_adk %>% select(nhdid, programid, geometry) %>% unique()
+la1 <- lagos_adk %>% dplyr::select(nhdid, programid, geometry) %>% unique()
 dist(la1[1,], adkl)
 
 sf_use_s2(FALSE)
@@ -638,3 +641,56 @@ la1$nhdid[which(sapply(con, length) == 2)]
 
 filter(lagos_adk, nhdid %in% la1$nhdid[which(sapply(con, length) == 2)])
 unique(filter(lagos_adk, nhdid %in% la1$nhdid[which(sapply(con, length) == 2)])$lagosname1)
+
+ggplot(adkl[2543,]) + geom_sf() + 
+  geom_sf(data = lagos_adk[1,])
+
+
+fulladk <- full_join(as.data.frame(adkl), as.data.frame(lagos_adk), by = c("Permanent_" = "nhdid"), multiple = "all") 
+
+srcprog <- read.csv("nhd/sourceprogram10873.csv")
+filter(srcprog, programid %in% unique(fulladk$programid))
+
+unique(filter(fulladk, programid == 44)$nhdid)
+
+
+adkl
+
+
+fulladk[fulladk$programid == 44,]
+
+lagos_adk[lagos_adk$legacyid %in% als_location$PONDNO[1],]
+lagos_adk
+idlist <- list()
+for(i in 1:nrow(als_location)){
+  r <- grep(als_location$PONDNO[i], lagos_adk$legacyid)
+  if(length(r) == 0){
+    idlist[[i]] <- NA
+  }else{
+    idlist[[i]] <- unique(lagos_adk$nhdid[r])
+  }
+
+}
+
+unique(lagos_adk$legacyid[lagos_adk$programid == 44])
+
+
+tail(als_location[als_location$PONDNO %in% unique(lagos_adk$legacyid[lagos_adk$programid == 44]),],10)
+
+idlist <- list()
+for(i in 1:nrow(als_location)){
+  idlist[[i]] <- lagos_adk[lagos_adk$legacyid %in% als_location$PONDNO[i],]
+  print(i)
+}
+
+nids <- lapply(idlist, function(x) ifelse(nrow(x) == 0, NA, unique(x$nhdid)))
+unique(unlist(nids[!sapply(nids, is.na)]))
+
+lagals <- als_location[which(!sapply(nids, is.na)),]
+lagals$Permanent_ <- unlist(nids[!sapply(nids, is.na)])
+
+adkl$als <- 0
+adkl$als[adkl$Permanent_ %in% unique(unlist(nids[!sapply(nids, is.na)]))] <- 1
+
+adkl2 <- left_join(adkl, dplyr::select(lagals, Permanent_, PONDNO, PONDNAME), by = "Permanent_")
+adkl2
