@@ -135,7 +135,7 @@ t2 <- Sys.time()
 t2-t1
 
 # select lake with i
-i = 4
+i = 1
 # read in simulation data
 ncdf <- paste0("output/output_", gsub(" ", "", meta$lake.name[i]), ".nc")
 
@@ -162,9 +162,6 @@ tdo %>% filter(lake.name == "Rondaxe") %>%
 
 
 
-c1 <- readRDS("cali_Big Moose.rds")
-min(read.csv(c1$Simstrat$results)$rmse)
-
 rmse <- lapply(list.files(pattern = "cali_")[grepl(".rds", list.files(pattern = "cali_"))], function(y){
   c1 <- readRDS(y)
   sapply(c1, function(x){
@@ -173,3 +170,45 @@ rmse <- lapply(list.files(pattern = "cali_")[grepl(".rds", list.files(pattern = 
 }) 
 
 boxplot(do.call(rbind, rmse))
+
+
+c1 <- readRDS("cali_Big Moose.rds")
+min(read.csv(c1$Simstrat$results)$rmse)
+res_LHC <- load_LHC_results(config_file = config_file, model = model, res_files = unlist(c1))
+best_p <- setNames(lapply(model, function(m)res_LHC[[m]][which.min(res_LHC[[m]]$rmse), ]), model)
+print(best_p)
+
+
+input_yaml_multiple(file = ler_yaml, 1.0611, key1 = "scaling_factors", key2 = "FLake", key3 = "wind_speed")
+input_yaml_multiple(file = ler_yaml, 0.80615, key1 = "scaling_factors", key2 = "FLake", key3 = "swr")
+input_yaml_multiple(file = ler_yaml, 0.009822, key1 = "model_parameters", key2 = "FLake", key3 = "c_relax_C")
+
+
+input_yaml_multiple(file = ler_yaml, 0.55132, key1 = "scaling_factors", key2 = "GLM", key3 = "wind_speed")
+input_yaml_multiple(file = ler_yaml, 0.78292, key1 = "scaling_factors", key2 = "GLM", key3 = "swr")
+input_yaml_multiple(file = ler_yaml, 1.8503, key1 = "model_parameters", key2 = "GLM", key3 = "mixing.coef_mix_hyp")
+
+
+input_yaml_multiple(file = ler_yaml, 1.5963, key1 = "scaling_factors", key2 = "GOTM", key3 = "wind_speed")
+input_yaml_multiple(file = ler_yaml, 0.52468, key1 = "scaling_factors", key2 = "GOTM", key3 = "swr")
+input_yaml_multiple(file = ler_yaml, 05.2533e-6, key1 = "model_parameters", key2 = "GOTM", key3 = "turb_param.k_min")
+
+
+input_yaml_multiple(file = ler_yaml, 0.59796, key1 = "scaling_factors", key2 = "Simstrat", key3 = "wind_speed")
+input_yaml_multiple(file = ler_yaml, 0.7048, key1 = "scaling_factors", key2 = "Simstrat", key3 = "swr")
+input_yaml_multiple(file = ler_yaml, 0.0022615, key1 = "model_parameters", key2 = "Simstrat", key3 = "a_seiche")
+
+## Set output file
+outfile <- paste0("output_", "BigMoose_cali")
+input_yaml_multiple(file = ler_yaml, outfile, key1 = "output", key2 = "file")
+
+export_config(config_file = config_file, model = model)
+
+# run model ensemble
+run_ensemble(config_file = config_file, model = model, parallel = TRUE)
+
+
+plot_heatmap("output/output_BigMoose_cali.nc") +
+  theme_bw(base_size = 12) + 
+  scale_colour_gradientn(colours = rev(RColorBrewer::brewer.pal(11, "Spectral"))) + 
+  labs(x = "Date", y = "Depth (m)", color = "°C", title = meta$lake.name[i])

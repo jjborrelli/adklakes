@@ -2,33 +2,24 @@
 library(ecmwfr)
 
 
+# This section sets up the API key obtained after registering an account
+## See https://bluegreen-labs.github.io/ecmwfr/ for more details
+
+## I keep my key in an rds object
 era_keys <- readRDS("data/era5key.rds")
-
-
 wf_set_key(user = era_keys$user, key = era_keys$cdskey, service = "cds")
 
-
-### DOWNLOAD ERA5
-c("air_temperature", "air_pressure", 
-  "relative_humidity", "surface_downwelling_longwave_flux_in_air", 
-  "surface_downwelling_shortwave_flux_in_air", "precipitation_flux", 
-  "specific_humidity", "wind_speed")
-
-metvars <- c("2m_temperature", "2m_dewpoint_temperature", "10m_u_component_of_wind",
-             "10m_v_component_of_wind", "large_scale_rain_rate", 
-             "surface_pressure",
-             "large_scale_snowfall_rate_water_equivalent",
-             "mean_surface_downward_short_wave_radiation_flux",
-             "mean_surface_downward_long_wave_radiation_flux")
-
-
+reanalysis-era5-land
+## This section is how I download a single year of hourly data
+## use for testing things out, next section gets everything
+# DOWNLOAD ERA5
 request <- list(
   dataset_short_name = "reanalysis-era5-single-levels",
+  # dataset_short_name = "reanalysis-era5-land",
   product_type   = "reanalysis",
-  # format = "2m_temperature",
   format = "large_scale_rain_rate",
   variable = "large_scale_rain_rate",
-  year = as.character(1993),
+  year = as.character(2015),
   month = stringr::str_pad(1:12,2,"left","0"),
   day = stringr::str_pad(1:31,2,"left","0"),
   time = c("00:00", "01:00", "02:00", "03:00", "04:00", "05:00", 
@@ -36,10 +27,8 @@ request <- list(
            "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", 
            "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"),
   # area is specified as N, W, S, E
-  # area = c(45.01157, -79.76718, 40.4852, -71.87756),
   area = c(44.87791, -75.31968, 43.05235, -73.29350), # adk park
-  # area = c(43.83786, -73.71255, 43.41753, -73.42483),
-  target = "era5/era5_large_scale_rain_rate_1993.nc"
+  target = "era5/era5_large_scale_rain_rate_2015.nc" # this is the path to where the download saves
 )
 
 t1 <- Sys.time()
@@ -52,19 +41,25 @@ t2 <- Sys.time()
 t2-t1
 
 
-mlst <- c(#"2m_temperature", 
-          #"2m_dewpoint_temperature",
-          #"10m_u_component_of_wind",
-          #"10m_v_component_of_wind",
-          #"large_scale_rain_rate", 
+
+# This section is a loop that I use to download all necessary variables to drive LakeEnsemblR
+
+mlst <- c("2m_temperature", 
+          "2m_dewpoint_temperature",
+          "10m_u_component_of_wind",
+          "10m_v_component_of_wind",
+          "large_scale_rain_rate", 
           "surface_pressure",
-          #"large_scale_snowfall_rate_water_equivalent",
+          "large_scale_snowfall_rate_water_equivalent",
           "mean_surface_downward_short_wave_radiation_flux",
           "mean_surface_downward_long_wave_radiation_flux"
           )
-for(x in mlst){
+
+# Depending on the size of your area the data may be too big for a single request even within this loop
+# This will take a long time to run...
+for(x in mlst){ # for each variable
   mvar <- x
-  for(i in 2013:2022){
+  for(i in 2013:2022){ # different download/request for each year
     
     request <- list(
       dataset_short_name = "reanalysis-era5-single-levels",
@@ -94,7 +89,7 @@ for(x in mlst){
     t2 <- Sys.time()
     t2-t1
     
-    Sys.sleep(60*2)
+    Sys.sleep(60*2) # sleeps code for 2 min to avoid making too many requests too fast (may not really be necessary)
   }
 }
 
@@ -102,6 +97,7 @@ for(x in mlst){
 
 
 ###############################
+## This section puts all the downloaded data together into one data frame
 
 library(ncdf4)
 library(sf)
@@ -147,15 +143,6 @@ for(i in seq_along((files))){
 
 
 tmpdata <- data.table::rbindlist(tmpdata)
-# 
-# test %>% 
-#   filter(year(datetime) == 2012) %>% 
-#   ggplot() + 
-#   geom_raster(aes(x = lon, y = lat, fill = temp_2m-273.15)) +
-#   geom_sf(data = st_transform(adkalt, "WGS84"), fill = NA, color = "black", linewidth = 1.2) + 
-#   scale_fill_viridis_c(option = "B") + 
-#   labs(title = "{frame_time}") + 
-#   transition_time(datetime)
 
 
 files <- list.files("data/era5", pattern = "nd_10m_u_component")
@@ -266,6 +253,9 @@ for(i in seq_along((files))){
     select(lat, lon, datetime, surface_press)
 }
 spresdata <- data.table::rbindlist(spresdata)
+
+
+# Uncomment this if you want to have snowfall in the data
 # 
 # files <- list.files("era5", pattern = "snowfall")
 # snowdata <- list()
@@ -282,9 +272,9 @@ spresdata <- data.table::rbindlist(spresdata)
 #     group_by(datetime) %>% summarize(snow = mean(value))
 # }
 
+
 # relhum from: https://www.omnicalculator.com/physics/relative-humidity
-met <- read.csv("LakeEnsemblR_meteo_adk_sub.csv")
-head(met)
+
 
 era5met <- dwsdata %>%
   left_join(dwldata, by = c("datetime", "lat", "lon")) %>%
@@ -294,17 +284,22 @@ era5met <- dwsdata %>%
   left_join(raindata, by = c("datetime", "lat", "lon")) %>%
   left_join(tmpdata, by = c("datetime", "lat", "lon")) %>%
   left_join(spresdata, by = c("datetime", "lat", "lon")) %>%
-  # left_join(do.call(rbind, snowdata), by = "datetime") %>%
-  mutate(wind_spd = sqrt(wind_v^2 + wind_u^2),
-         temp_2m = temp_2m - 273.15, dewpt_2m = dewpt_2m - 273.15,
-         relhum = 100 * ((exp((17.625 * dewpt_2m)/(243.04+dewpt_2m))/
+  # left_join(do.call(rbind, snowdata), by = "datetime") %>% # uncomment for snowfall
+  mutate(wind_spd = sqrt(wind_v^2 + wind_u^2), # compute wind speed
+         temp_2m = temp_2m - 273.15, dewpt_2m = dewpt_2m - 273.15, # convert temps from K to C
+         relhum = 100 * ((exp((17.625 * dewpt_2m)/(243.04+dewpt_2m))/ # compute rel humidity
                             exp((17.625 * temp_2m)/(243.04+temp_2m)))),
          precip = (precip * 86400)/24) %>%
   select(lat, lon, datetime, downward_shortwave,downward_longwave, temp_2m,
          relhum, wind_spd, precip, surface_press)
 
-colnames(era5met) <- c("lat", "lon", colnames(met)[-8])
 
-# rbind(era5, era5met) %>% arrange(datetime)
+# colnames in the format of LakeEnsemblR
+correct_names <- c("datetime", "Shortwave_Radiation_Downwelling_wattPerMeterSquared", 
+                   "Longwave_Radiation_Downwelling_wattPerMeterSquared", "Air_Temperature_celsius", 
+                   "Relative_Humidity_percent", "Ten_Meter_Elevation_Wind_Speed_meterPerSecond", 
+                   "Rainfall_millimeterPerHour", "Surface_Level_Barometric_Pressure_pascal")
 
-# arrow::write_parquet(era5met, sink = "data/era5_adk_1992-2012.parquet")
+colnames(era5met) <- c("lat", "lon", correct_names)
+
+# write.csv(era5met, "data/era5_1992-2012.parquet", row.names = FALSE)
