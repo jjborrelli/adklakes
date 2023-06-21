@@ -652,7 +652,7 @@ srcprog <- read.csv("nhd/sourceprogram10873.csv")
 filter(srcprog, programid %in% unique(fulladk$programid))
 
 unique(filter(fulladk, programid == 44)$nhdid)
-
+filter(srcprog, programid %in% unique(lagos_adk$programid))
 
 adkl
 
@@ -667,15 +667,46 @@ for(i in 1:nrow(als_location)){
   if(length(r) == 0){
     idlist[[i]] <- NA
   }else{
-    idlist[[i]] <- unique(lagos_adk$nhdid[r])
+    idlist[[i]] <- unique(lagos_adk$lagoslakeid[r])
   }
 
 }
 
+alstest <- idlist[(sapply(idlist, function(x) length(x) > 1))]
+
+x <- 7
+lagos_adk[lagos_adk$lagoslakeid %in% alstest[[x]],]
+als_location$PONDNO[(sapply(idlist, function(x) length(x) > 1))][x]
+
+c(132859023, 132437629, 135271406, 92082313, 135271326, 132859199, 89362545)
+c("Allen Pond","Aluminum Pond","Bear Pond", "Big Pond", "Black Pond", "Brother Pond", "Challis Pond")
 unique(lagos_adk$legacyid[lagos_adk$programid == 44])
 
+adkl3$als[adkl3$Permanent_ %in% unique(filter(lagos_adk, programid == 44)$nhdid)] <- 1
+
+
+als_location[als_location$PONDNO == "040267",]
+adkl3[adkl3$Permanent_ == 131842864,]
+
+
+# 
+# lagos_adk %>% as.data.frame() %>% select(nhdid, legacyid, lagosname1) %>% 
+#   filter(nhdid %in% (adkl3[adkl3$als == 1 & is.na(adkl3$PONDNO),])$Permanent_) %>% 
+#   unique() %>% write.csv("data/alspondno2.csv")
+
+alspondno <- read.csv("data/alspondno2.csv")
+
+for(i in 1:nrow(alspondno)){
+  adkl3$PONDNO[adkl3$Permanent_ == alspondno$nhdid[i]] <- alspondno$PONDNO[i]
+  adkl3$PONDNAME[adkl3$Permanent_ == alspondno$nhdid[i]] <- alspondno$lagosname1[i]
+}
 
 tail(als_location[als_location$PONDNO %in% unique(lagos_adk$legacyid[lagos_adk$programid == 44]),],10)
+
+cslpNAMES <- lagos_adk %>% as.data.frame() %>% filter(nhdid %in% filter(as.data.frame(adkl3), ny_cslap == 1)$Permanent_) %>% select(nhdid, lagosname1) %>% unique()
+lnames <- lagos_adk %>% as.data.frame() %>% select(nhdid, lagosname1) %>% unique()
+
+adkl4 <- left_join(adkl3, lnames, by = c("Permanent_" = "nhdid"))
 
 idlist <- list()
 for(i in 1:nrow(als_location)){
@@ -694,3 +725,150 @@ adkl$als[adkl$Permanent_ %in% unique(unlist(nids[!sapply(nids, is.na)]))] <- 1
 
 adkl2 <- left_join(adkl, dplyr::select(lagals, Permanent_, PONDNO, PONDNAME), by = "Permanent_")
 adkl2
+
+# saveRDS(adkl2, "data/adklakes_aeap_als.rds")
+adkl2 <- readRDS("data/adklakes_aeap_als.rds")
+
+altm
+
+alsc <- list()
+alsc2 <- list()
+for(i in seq_along(unique(altm$ALSC_Site_ID))){
+  alsc[[i]] <- grep(unique(altm$ALSC_Site_ID)[i], adkl2$PONDNO)
+  alsc2[[i]] <- grep(unique(altm$ALSC_Site_ID)[i], unique(lagos_adk$legacyid))
+}
+alsc
+sapply(alsc2, function(x) length(x) > 1)
+
+
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[unlist(alsc2[which(sapply(alsc2, function(x) length(x) == 1))])],], lagoslakeid, legacyid, nhdid, lagosname1))
+
+alsc2[which(sapply(alsc2, function(x) length(x) > 1))]
+
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[c(171,831)],], lagoslakeid, legacyid, nhdid, lagosname1))
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[c(266,668)],], lagoslakeid, legacyid, nhdid, lagosname1))
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[c(177,258)],], lagoslakeid, legacyid, nhdid, lagosname1))
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[c(102,1220)],], lagoslakeid, legacyid, nhdid, lagosname1))
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[c(145,957)],], lagoslakeid, legacyid, nhdid, lagosname1))
+
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[c(145,957)],], lagoslakeid, legacyid, nhdid, lagosname1)) %>%
+  ggplot() + geom_sf() + geom_sf(data = filter(adkl2, Permanent_ %in% c(132437639 ,132437632 )), fill = NA)
+
+
+lapply(alsc2[which(sapply(alsc2, function(x) length(x) > 1))], function(x){
+  unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[x],], lagoslakeid, legacyid, nhdid, lagosname1))
+})
+
+
+unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[unlist(alsc2[which(sapply(alsc2, function(x) length(x) == 1))])],], lagoslakeid, legacyid, nhdid, lagosname1)) 
+altmnhd <- (unique(select(lagos_adk[lagos_adk$legacyid %in% unique(lagos_adk$legacyid)[unlist(alsc2[which(sapply(alsc2, function(x) length(x) == 1))])],], lagoslakeid, legacyid, nhdid, lagosname1)))$nhdid
+
+altmnhd2 <- c(135271326, 135271322,  # 030256 BLACK POND POINT, 030256 (030249) BLACK POND POINT, 
+              131843386,             # 040576A OUTLET POND POINT
+              131844150,             # 040750 DART LAKE ?? 040750A WINDFALL POND: 131844009 
+              131843304, 131843476,  # 040777 CONSTABLE POND POINT
+              132437639, 132437632)  # 060329 QUEER LAKE
+
+
+adkl2$altm <- 0 
+adkl2$altm[adkl2$Permanent_ %in% c(altmnhd, altmnhd2)] <- 1
+
+adkl2[adkl2$altm == 1,]
+
+
+# lagos_adk[lagos_adk$nhdid %in% c(altmnhd, altmnhd2),] %>% 
+#   select(lagoslakeid, legacyid, nhdid, lagosname1) %>% 
+#   unique() %>% print(n = 100) %>% 
+#   write.csv("data/altmnhdids.csv")
+
+altmids <- read.csv("data/altmnhdids.csv")
+altmids$Permanent_ <- as.character(altmids$nhdid)
+altmids$altmPONDNO <- altmids$X.1
+
+adkl2$altmPONDNO[adkl2$Permanent_ == altmids$nhdid,]
+
+adkl3 <- left_join(adkl2, dplyr::select(altmids, altmPONDNO, Permanent_), by = c("Permanent_"))
+print(adkl3[adkl3$altm == 1,], n = 100)
+
+
+unique(als_location$PONDNO)
+
+als <- list()
+for(i in seq_along(unique(als_location$PONDNO))){
+  als[[i]] <- grep(unique(als_location$PONDNO)[i], unique(lagos_adk$legacyid))
+}
+
+
+which(sapply(als, function(x) length(x) == 0))
+als[8]
+
+
+filter(srcprog, programid %in% unique(lagos_adk$programid)) %>% 
+  select(programid, programname, programtable, programlink, variable_list, lakecount, beg_year, end_year)
+epatime <- unique(lagos_adk$nhdid[lagos_adk$programid == 8])
+nycslap <- unique(lagos_adk$nhdid[lagos_adk$programid == 46])
+
+adkl3$epa_time <- 0
+adkl3$epa_time[adkl3$Permanent_ %in% epatime] <- 1
+adkl3$ny_cslap <- 0
+adkl3$ny_cslap[adkl3$Permanent_ %in% nycslap] <- 1
+
+sum(rowSums(as.data.frame(select(as.data.frame(adkl3), aeap, als, altm, epa_time, ny_cslap))) > 0)
+
+
+
+filter(srcprog, programid %in% unique(lagos_adk$programid), programid %in% c(3, 4, 47)) %>% 
+  select(programid, programname, programtable, programlink, variable_list, lakecount, beg_year, end_year)
+
+
+# EPA_ELS (173) - Eastern Lake Survey
+## https://archive.epa.gov/emap/archive-emap/web/html/els.html
+epaels <- filter(as.data.frame(lagos_adk), programid == 3) %>% select(nhdid, lagosname1) %>% unique() #%>% dim()
+
+# EPA_EMAP (70) - Environmental Monitoring and Assessment Program
+## https://archive.epa.gov/emap/archive-emap/web/html/
+epaemap <- filter(as.data.frame(lagos_adk), programid == 4) %>% select(nhdid, lagosname1) %>% unique() #%>% dim()
+
+# NY_LCI_CHEM (87) - Lake Classification and Inventory
+## https://www.dec.ny.gov/chemical/31411.html
+nylci <- filter(as.data.frame(lagos_adk), programid == 47) %>% select(nhdid, lagosname1) %>% unique() #%>% dim()
+
+
+adkl4$els <- 0
+adkl4$els[adkl4$Permanent_ %in% epaels$nhdid] <- 1
+
+adkl4$emap <- 0
+adkl4$els[adkl4$Permanent_ %in% epaemap$nhdid] <- 1
+
+adkl4$nylci <- 0
+adkl4$els[adkl4$Permanent_ %in% nylci$nhdid] <- 1
+
+sum(adkl4$als)
+
+adkl5 <- adkl4 %>% group_by(Permanent_) %>% filter(FDate == max(FDate))
+
+# saveRDS(adkl5, "data/adkl5_survinfo.rds")
+
+adknhdwb10 <- readRDS("nhd/adk_nhd_wb10_adk.rds")
+adknhdwb12 <- readRDS("nhd/adk_nhd_wb12_adk.rds")
+adknhdwbprop <- read.csv("nhd/adk_nhd_wbdproperties.csv")
+
+sf_use_s2(FALSE)
+
+test <- st_contains(adknhdwb10, adkl5, sparse = FALSE)
+table(sapply(apply(test, 2, which), length))
+
+test2 <- st_overlaps(adknhdwb10, adkl5, sparse = FALSE)
+table(sapply(apply(test2, 2, which), length))
+
+ggplot(adkl5[which(sapply(apply(test, 2, which), length) == 0),]) + geom_sf(fill = "blue") + 
+  geom_sf(data = adknhdwb10, fill = NA)
+
+test3 <- st_join(adkl5, adknhdwb10) 
+test3
+test3$geometry
+
+test4 <- st_join(test3, adknhdwb12)
+
+# this has adkl5 with watershed boundaries hu10 and hu12
+# saveRDS(test4, "data/fulladk_ws.rds")
