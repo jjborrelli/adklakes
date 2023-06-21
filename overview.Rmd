@@ -160,6 +160,26 @@ ggplot(als_physic, aes(x = DEPTH, y = TEMPF)) + geom_point(alpha = 0.2) +
   facet_wrap(~month(dmy(ADATE)), nrow = 2)
 ```
 
+```{r}
+als_physic %>% filter(month(dmy(ADATE)) == 8) %>% 
+  filter(!is.na(TEMPF), year(dmy(ADATE)) %in% 1984:1987) %>% 
+  group_by(ADATE, PONDNO, STATION, DEPTH) %>% 
+  summarize(TEMPF = mean(TEMPF, na.rm = TRUE)) %>%
+  ungroup() %>% 
+  group_by(ADATE, PONDNO, STATION) %>% 
+  summarize(
+    th = thermo.depth(TEMPF, DEPTH)
+  ) %>% 
+  left_join(als_morpho, by = "PONDNO") %>% 
+  filter(MAXDEPTH > 0) %>% 
+  ggplot(aes(x = SAREA, th, color = MAXDEPTH)) + geom_point() + 
+  #scale_y_log10() + 
+  scale_x_log10() + 
+  labs(x = "Log10 Surface Area", y = "Log10 Aug Thermocline Depth")
+
+```
+
+
 ```{r doPROF, fig.align = "center", fig.height = 6, fig.width = 4, fig.caption = "ALS lake dissolved oxygen profiles by month"}
 ggplot(als_physic, aes(x = DEPTH, y = DO)) + geom_point(alpha = 0.2) + 
   # geom_line(aes(group = PONDNO), alpha = 0.3) + 
@@ -183,6 +203,14 @@ ifishSUM <- als_indfish %>%
 
 ```{r}
 altm <- read.csv("data/NY_ADIRONDACK_1992.csv")
+```
+
+```{r}
+altm %>% 
+  mutate(date = ymd(Conformed_Date)) %>% 
+  filter(!is.na(DOC), Depth == 0) %>% 
+  ggplot(aes(x = date, y = DOC)) + geom_point() + 
+  facet_wrap(~ALSC_Site_ID, scales = "free_y")
 ```
 
 
@@ -391,6 +419,13 @@ lagtkn <- ggplot(filter(lagos_adk, !grepl("LE", tkn_censorcode), year(ymd(sample
 
 ```
 
+
+## Combining
+
+I started with the NHDplus and LAGOS-NE data. Then I identified AEAP lakes and ALSC lakes by their legacy id value in LAGOS. For EPA TIME and NY CSLAP I linked the nhdid value in LAGOS with the Permanent_ id in NHDplus. Not all ponds/lakes identified in the ALSC database were found in the LAGOS database, so there may be some missing in the full dataset here. The ALSC location dataset included 4833 unique pond numbers, but only 1221 unique ponds/lakes are identified in LAGOS from that survey (from metadata seems like I missed 45?). 
+
+We have included the NHDid (Permanent_), NHDPlusID, GNIS_ID, GNIS_Name, PONDNO, PONDNAME, and Lagos Name, though many of the names are redundant. 
+We estimated the elevation of each lake in the NHD dataset using a digital elevation model, averaging cells that overlap the lake shape. 
 
 # Modelling
 
