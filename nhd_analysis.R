@@ -61,9 +61,18 @@ NHD
 testwbd <- nhd_load("NY", "WBDHU12")
 testwbd10 <- nhd_load("NY", "WBDHU10")
 
+testwbd6 <- nhd_load("NY", "WBDHU6")
+testwbd8 <- nhd_load("NY", "WBDHU8")
+
+# testwbd <- nhd_load("NY", "WBDHU4")
+# ggplot(testwbd) + geom_sf()
+
+st_intersection(st_transform(adkalt2, st_crs(testwbd)), testwbd) %>% 
+  ggplot() + geom_sf()
+
 test <- readRDS("nhd/adk_nhd.rds")
 apa <- st_transform(adkland, st_crs(test))
-
+ st_intersection(st_transform(adkalt, st_crs(testwbd10)), testwbd10)
 
 test %>% 
   ggplot() + geom_sf(color = "blue", fill = "blue") + 
@@ -848,6 +857,7 @@ sum(adkl4$als)
 adkl5 <- adkl4 %>% group_by(Permanent_) %>% filter(FDate == max(FDate))
 
 # saveRDS(adkl5, "data/adkl5_survinfo.rds")
+# adkl5 <- readRDS("data/adkl5_survinfo.rds")
 
 adknhdwb10 <- readRDS("nhd/adk_nhd_wb10_adk.rds")
 adknhdwb12 <- readRDS("nhd/adk_nhd_wb12_adk.rds")
@@ -862,13 +872,50 @@ test2 <- st_overlaps(adknhdwb10, adkl5, sparse = FALSE)
 table(sapply(apply(test2, 2, which), length))
 
 ggplot(adkl5[which(sapply(apply(test, 2, which), length) == 0),]) + geom_sf(fill = "blue") + 
-  geom_sf(data = adknhdwb10, fill = NA)
+  geom_sf(data = adknhdwb12, fill = NA)
 
-test3 <- st_join(adkl5, adknhdwb10) 
+test3 <- st_join(adkl5, select(adknhdwb10, huc10, namehu10 = name, geometry)) 
 test3
 test3$geometry
 
-test4 <- st_join(test3, adknhdwb12)
+test4 <- st_join(test3, select(adknhdwb12, huc12, namehu12 = name, geometry))
 
 # this has adkl5 with watershed boundaries hu10 and hu12
 # saveRDS(test4, "data/fulladk_ws.rds")
+
+pilot <- read.csv("data/SCALE_pilot.csv")
+
+test5 <- left_join(test4, filter(pilot, !grepl("OUTLET", Lake)), by = c("PONDNO" = "ALSC_PondNO"))
+
+sum(!is.na(test5$Lake))
+
+awi <- read.csv("data/AWI Waterbody Metadata.csv")
+awi
+dim(awi)
+sum(awi$Active == "Y")
+
+sf_use_s2(FALSE)
+conts <- st_contains(adkl5, st_as_sf(data.frame(lat = awi$Latitude, long = awi$Longitude), coords = c("long", "lat"), crs = st_crs(adkl5)))
+
+awi[which(sapply(apply(conts, 2, which), length) == 0),]
+
+adkl5[apply(conts, 2, which),"lagosname1"]
+awi[1,]
+
+unlist(apply(conts, 2, which)[-which(sapply(apply(conts, 2, which), length) == 0)])
+namcheck <- cbind(adkl5[unlist(apply(conts, 2, which)[-which(sapply(apply(conts, 2, which), length) == 0)]),"GNIS_Name"]$GNIS_Name,
+      awi$Waterbody_Name[which(sapply(apply(conts, 2, which), length) != 0)])
+
+nhdidval <- adkl5[unlist(apply(conts, 2, which)[-which(sapply(apply(conts, 2, which), length) == 0)]),]$Permanent_
+
+dim(awi)
+
+awiadk <- awi[which(sapply(apply(conts, 2, which), length) != 0),]
+dim(awiadk)
+awiadk$Permanent_ <- nhdidval
+awiadk <- rename(awiadk, AWI_active = Active, AWI_wbdname = Waterbody_Name) %>% select(-Latitude, -Longitude)
+awiadk[awiadk$Permanent_ %in% c(53542311, 53542293, 131844637, 129691069),]
+
+
+adkl6 <- left_join(adkl5, awiadk, by = "Permanent_", multiple = "all")
+

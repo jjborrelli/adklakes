@@ -22,7 +22,12 @@ secchi <- adk_data("secchi")
 
 tdo <- adk_data("tempdo")
 
-
+select(chem, PERMANENT_ID, lake.name, date, DOC) %>% 
+  left_join(secchi, by = c("PERMANENT_ID", "lake.name", "date")) %>% 
+  filter(!is.na(secchi)) %>% 
+  mutate(k1 = 1.7/secchi, k2 = 0.15 * DOC^1.08) %>% 
+  ggplot(aes(x = k1, y = k2)) + geom_point()
+ 
 pgen <- select(phy, lake.name, Genus) %>% 
   mutate(Genus = trimws(Genus)) %>% 
   filter(Genus != "unknown") %>% 
