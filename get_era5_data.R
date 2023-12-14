@@ -9,7 +9,7 @@ library(ecmwfr)
 era_keys <- readRDS("data/era5key.rds")
 wf_set_key(user = era_keys$user, key = era_keys$cdskey, service = "cds")
 
-reanalysis-era5-land
+# reanalysis-era5-land
 ## This section is how I download a single year of hourly data
 ## use for testing things out, next section gets everything
 # DOWNLOAD ERA5
@@ -57,9 +57,10 @@ mlst <- c("2m_temperature",
 
 # Depending on the size of your area the data may be too big for a single request even within this loop
 # This will take a long time to run...
-for(x in mlst){ # for each variable
+for(x in mlst[-c(1,2,3)]){ # for each variable
   mvar <- x
-  for(i in 2013:2022){ # different download/request for each year
+  # if(x == "10m_v_component_of_wind"){sy = 1981}else{sy = 1980}
+  for(i in 1984:1991){ # different download/request for each year
     
     request <- list(
       dataset_short_name = "reanalysis-era5-single-levels",
@@ -105,7 +106,7 @@ library(ggplot2)
 library(lubridate)
 library(dplyr)
 
-files <- list.files("data/era5", pattern = "nd_2m_dewpoint")
+files <- list.files("data/era5", pattern = "2m_dewpoint")
 dpdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -120,12 +121,12 @@ for(i in seq_along((files))){
     mutate(dewpt_2m = value) %>% 
     select(lat, lon, datetime, dewpt_2m)
 }
-dpdata <- data.table::rbindlist(dpdata)
+dpdata <- data.table::rbindlist(dpdata) %>% unique() %>% arrange(datetime)
 
 
 
 
-files <- list.files("data/era5", pattern = "nd_2m_temperature")
+files <- list.files("data/era5", pattern = "2m_temperature")
 tmpdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -142,10 +143,10 @@ for(i in seq_along((files))){
 }
 
 
-tmpdata <- data.table::rbindlist(tmpdata)
+tmpdata <- data.table::rbindlist(tmpdata) %>% unique() %>% arrange(datetime)
 
 
-files <- list.files("data/era5", pattern = "nd_10m_u_component")
+files <- list.files("data/era5", pattern = "10m_u_component")
 wndudata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -160,10 +161,10 @@ for(i in seq_along((files))){
     mutate(wind_u = value) %>% 
     select(lat, lon, datetime, wind_u)
 }
-wndudata <- data.table::rbindlist(wndudata)
+wndudata <- data.table::rbindlist(wndudata) %>% unique() %>% arrange(datetime)
 
 
-files <- list.files("data/era5", pattern = "nd_10m_v_component")
+files <- list.files("data/era5", pattern = "10m_v_component")
 wndvdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -178,13 +179,13 @@ for(i in seq_along((files))){
     mutate(wind_v = value) %>% 
     select(lat, lon, datetime, wind_v)
 }
-wndvdata <- data.table::rbindlist(wndvdata)
+wndvdata <- data.table::rbindlist(wndvdata) %>% unique() %>% arrange(datetime)
 
 
 
 
 
-files <- list.files("data/era5", pattern = "nd_large_scale_rain_rate")
+files <- list.files("data/era5", pattern = "large_scale_rain_rate")
 raindata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -199,10 +200,10 @@ for(i in seq_along((files))){
     mutate(precip = value) %>% 
     select(lat, lon, datetime, precip)
 }
-raindata <- data.table::rbindlist(raindata)
+raindata <- data.table::rbindlist(raindata) %>% unique() %>% arrange(datetime)
 
 
-files <- list.files("data/era5", pattern = "nd_mean_surface_downward_long_wave")
+files <- list.files("data/era5", pattern = "mean_surface_downward_long_wave")
 dwldata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -217,10 +218,10 @@ for(i in seq_along((files))){
     mutate(downward_longwave = value) %>% 
     select(lat, lon, datetime, downward_longwave)
 }
-dwldata <- data.table::rbindlist(dwldata)
+dwldata <- data.table::rbindlist(dwldata) %>% unique() %>% arrange(datetime)
 
 
-files <- list.files("data/era5", pattern = "nd_mean_surface_downward_short_wave")
+files <- list.files("data/era5", pattern = "mean_surface_downward_short_wave")
 dwsdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -237,7 +238,7 @@ for(i in seq_along((files))){
 }
 dwsdata <- data.table::rbindlist(dwsdata)
 
-files <- list.files("data/era5", pattern = "nd_surface_pressure")
+files <- list.files("data/era5", pattern = "surface_pressure")
 spresdata <- list()
 for(i in seq_along((files))){
   nc <- nc_open(paste0("data/era5/", files[i]))
@@ -252,7 +253,7 @@ for(i in seq_along((files))){
     mutate(surface_press = value) %>% 
     select(lat, lon, datetime, surface_press)
 }
-spresdata <- data.table::rbindlist(spresdata)
+spresdata <- data.table::rbindlist(spresdata) %>% unique() %>% arrange(datetime)
 
 
 # Uncomment this if you want to have snowfall in the data
@@ -302,4 +303,15 @@ correct_names <- c("datetime", "Shortwave_Radiation_Downwelling_wattPerMeterSqua
 
 colnames(era5met) <- c("lat", "lon", correct_names)
 
-# write.csv(era5met, "data/era5_1992-2012.parquet", row.names = FALSE)
+# write.csv(era5met, "data/era5_1992-2022.parquet", row.names = FALSE)
+# arrow::write_parquet(era5met, "data/era5_adk_1980-2022.parquet")
+
+era5 <- arrow::read_parquet("data/era5_adk_1980-2022.parquet")
+
+era5 %>% filter(datetime == ymd_hms("1992-01-01 00:00:00")) %>% 
+  ggplot(aes(x = lon, y = lat, fill = Air_Temperature_celsius)) + 
+  geom_tile()
+
+range(era5$datetime)
+
+era5met <- filter(era5met, year(datetime) < 1992)
