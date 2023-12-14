@@ -56,3 +56,7 @@ LakeChamplain/
 LakeEnsemblR.yaml
 cali_*
 LER_CNFG_TMP.yaml
+*.gif
+*.rds
+*.parquet
+*.tif
