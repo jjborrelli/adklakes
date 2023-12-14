@@ -13,13 +13,13 @@ states <- st_as_sf(maps::map("state", plot = FALSE, fill = TRUE))
 adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline")
 adkalt2 <- st_transform(adkalt, "WGS84")
 
-nhdadk <- get_nhd(adkalt2, label = "adk", nhdplus = TRUE, extraction.dir = "data/")
-
-NHD <- get_nhd(
-  template = FedData::meve,
-  label = "meve"
-)
-NHD
+# nhdadk <- get_nhd(adkalt2, label = "adk", nhdplus = TRUE, extraction.dir = "data/")
+# 
+# NHD <- get_nhd(
+#   template = FedData::meve,
+#   label = "meve"
+# )
+# NHD
 # 
 # install.packages("nhdR")
 # 
@@ -105,6 +105,12 @@ ggplot() +
 # adkwaterbd <- st_intersection(st_transform(adkalt, st_crs(testwbd)), testwbd)
 # adkwaterbd10 <- st_intersection(st_transform(adkalt, st_crs(testwbd10)), testwbd10)
 
+adkwaterbd6 <- st_intersection(st_transform(adkalt, st_crs(testwbd6)), testwbd6)
+adkwaterbd8 <- st_intersection(st_transform(adkalt, st_crs(testwbd8)), testwbd8)
+
+
+# saveRDS(adkwaterbd6, "nhd/adk_nhd_wb06_adk.rds")
+# saveRDS(adkwaterbd8, "nhd/adk_nhd_wb08_adk.rds")
 # saveRDS(adkwaterbd, "nhd/adk_nhd_wb12_adk.rds")
 # saveRDS(adkwaterbd10, "nhd/adk_nhd_wb10_adk.rds")
 adkwaterbd <- readRDS("nhd/adk_nhd_wb12_adk.rds")
@@ -129,9 +135,9 @@ library(rgdal)
 library(terra)
 
 nlcd <- get_nlcd(
-  template = adkalt,
+  template = adkalt2,
   label = "adk",
-  year = 2001,
+  year = 2019,
   dataset = c("landcover", "impervious", "canopy"),
   landmass = "L48",
   extraction.dir = "./FedData/",
@@ -141,7 +147,7 @@ nlcd <- get_nlcd(
 
 plot(nlcd)
 
-adknlcd <- st_transform(lgws, st_crs(nlcd))
+adknlcd <- st_transform(adkalt2, st_crs(nlcd))
 nlcd2 <- crop(nlcd, adknlcd)
 nlcd3 <- mask(nlcd2, adknlcd)
 # 
@@ -152,7 +158,7 @@ nlcd3 <- mask(nlcd2, adknlcd)
 plot(nlcd3)
 
 nlcdd <- as.data.frame(nlcd3, xy = TRUE) %>% 
-  filter(!is.na(Class_Class))
+  filter(!is.na(Class))
 head(nlcdd)
 
 classlevels <- c("Barren Land (Rock/Sand/Clay)",
@@ -170,12 +176,13 @@ classlevels <- c("Barren Land (Rock/Sand/Clay)",
   "Woody Wetlands", 
   "Emergent Herbaceous Wetlands", 
   "Open Water")
-colorcombos <- dplyr::select(nlcdd, Class_Color, Class_Class) %>% unique() 
+colorcombos <- dplyr::select(nlcdd, Class_Class, Class_Color) %>% unique() 
 colorcombos$Class_Class <- factor(colorcombos$Class_Class, levels = classlevels)
 colorcombos <- arrange(colorcombos, Class_Class)
 
-nlcdd$Class_Class <- factor(nlcdd$Class_Class, levels = classlevels) 
-
+nlcdd$Class <- factor(nlcdd$Class_Class, levels = classlevels) 
+# arrow::write_parquet(nlcdd, "data/landcover.parquet")
+# nlcdd <- arrow::read_parquet("data/landcover.parquet")
 
 lcplot <- ggplot((nlcdd), aes(x = x, y = y)) + 
   geom_raster(aes(fill = Class_Class)) + 
@@ -189,9 +196,57 @@ lcplot <- ggplot((nlcdd), aes(x = x, y = y)) +
 
 lcplot
 
+ggplot((nlcdd)) + 
+  geom_raster(aes(x = x, y = y, fill = Class_Class)) + 
+  scale_fill_manual(values = colorcombos$Class_Color, label = colorcombos$Class_Class) +
+  coord_sf(crs = crs(nlcd3)) + 
+  theme_void() + theme(legend.position = "none") + 
+  labs(x = "", y = "", fill = "") + 
+  geom_sf(data = st_transform(adk_roads, st_crs(nlcd)), alpha = 0.5) +
+  theme(
+    panel.background = element_rect(fill='transparent'), #transparent panel bg
+    plot.background = element_rect(fill='transparent', color=NA), #transparent plot bg
+    panel.grid.major = element_blank(), #remove major gridlines
+    panel.grid.minor = element_blank(), #remove minor gridlines
+    legend.background = element_rect(fill='transparent'), #transparent legend bg
+    legend.box.background = element_rect(fill='transparent') #transparent legend panel
+  )
+
+ggsave("adklandcoverRDS.png", height = 6, width = 6, bg='transparent')
+
 #ggsave("adklandcover.png", height = 8, width = 12)
 
 #ggsave("adk_wbd_lc.png", height = 8, width = 16)
+
+
+lakesdf <- adklakeSUMMARY %>% dplyr::select(Permanent_, geometry) %>% unique()
+
+dflist <- list()
+for(i in 1:nrow(lakesdf)){
+  templake <- lakesdf[i, ] %>% st_transform("EPSG:3857")
+  buff <- st_buffer(templake, 100)
+  buffLC <- st_transform(buff, st_crs(nlcd))
+  nlcd2 <- crop(nlcd, buffLC)
+  nlcd2 <- mask(nlcd2, buffLC)
+  buffdd <- as.data.frame(nlcd2, xy = TRUE) %>% 
+    filter(!is.na(Class)) %>% 
+    group_by(Class) %>% summarize(n = n()) %>% 
+    mutate(Permanent_ = templake$Permanent_)
+  
+  dflist[[i]] <- buffdd
+  print(i)
+}
+ 
+lcmat <- data.table::rbindlist(dflist) %>% 
+  group_by(Permanent_) %>% 
+  filter(Class != "Open Water") %>% 
+  mutate(n = n/sum(n)) %>% 
+  spread(key = Class, value = n, fill = 0) %>% 
+  ungroup() %>% 
+  dplyr::select(-Permanent_) %>% 
+  as.matrix()
+
+(pcaCoDa(lcmat))
 
 
 nlcdd %>% 
@@ -204,6 +259,7 @@ nlcdd %>%
   theme_minimal(base_size = 16) + 
   theme(legend.position = "none") + 
   labs(x = "", y = "Percent Cover")
+
 
 
 ggplot((nlcdd)) + 
@@ -220,23 +276,29 @@ ggplot((nlcdd)) +
 
 #ggsave("adklandcoverWBD.png", height = 8, width = 12)
 #ggsave("adklandcover2.png", height = 8, width = 8)
+coldf <- data.frame(class = c("Barren", "Forest", "Developed", "Wetland", "Grassy Scrub", "Water", "Farm"), 
+                    color = c("grey40", "green4", "grey60", "lightblue", "green3", "blue", "chocolate")) %>% 
+  mutate(class = factor(class, 
+                        levels = c("Barren", "Developed", "Farm", "Grassy Scrub", 
+                                   "Water", "Wetland", "Forest"))) %>% 
+  arrange(class)
 
 nlcdd %>% 
-  mutate(class = case_when(Class_Class == "Barren Land (Rock/Sand/Clay)" ~ "Barren", 
-                           Class_Class == "Deciduous Forest" ~ "Forest", 
-                           Class_Class == "Developed High Intensity" ~ "Developed", 
-                           Class_Class == "Developed, Low Intensity" ~ "Developed",
-                           Class_Class == "Developed, Medium Intensity" ~ "Developed",
-                           Class_Class == "Developed, Open Space" ~ "Developed", 
-                           Class_Class == "Emergent Herbaceous Wetlands" ~ "Wetland", 
-                           Class_Class == "Evergreen Forest" ~ "Forest", 
-                           Class_Class == "Grassland/Herbaceous" ~ "Grassy Scrub", 
-                           Class_Class == "Mixed Forest" ~ "Forest", 
-                           Class_Class == "Open Water" ~ "Water", 
-                           Class_Class == "Pasture/Hay" ~ "Farm", 
-                           Class_Class == "Shrub/Scrub" ~ "Grassy Scrub", 
-                           Class_Class == "Woody Wetlands" ~ "Wetland", 
-                           Class_Class == "Cultivated Crops" ~ "Farm"), 
+  mutate(class = case_when(Class == "Barren Land (Rock/Sand/Clay)" ~ "Barren", 
+                           Class == "Deciduous Forest" ~ "Forest", 
+                           Class == "Developed High Intensity" ~ "Developed", 
+                           Class == "Developed, Low Intensity" ~ "Developed",
+                           Class == "Developed, Medium Intensity" ~ "Developed",
+                           Class == "Developed, Open Space" ~ "Developed", 
+                           Class == "Emergent Herbaceous Wetlands" ~ "Wetland", 
+                           Class == "Evergreen Forest" ~ "Forest", 
+                           Class == "Grassland/Herbaceous" ~ "Grassy Scrub", 
+                           Class == "Mixed Forest" ~ "Forest", 
+                           Class == "Open Water" ~ "Water", 
+                           Class == "Pasture/Hay" ~ "Farm", 
+                           Class == "Shrub/Scrub" ~ "Grassy Scrub", 
+                           Class == "Woody Wetlands" ~ "Wetland", 
+                           Class == "Cultivated Crops" ~ "Farm"), 
          class = factor(class, levels = c("Barren", "Developed", "Farm", "Grassy Scrub", "Water", "Wetland", "Forest"))) %>% 
   ggplot() + 
   geom_raster(aes(x = x, y = y, fill = class)) + 
@@ -661,6 +723,7 @@ srcprog <- read.csv("nhd/sourceprogram10873.csv")
 filter(srcprog, programid %in% unique(fulladk$programid))
 
 unique(filter(fulladk, programid == 44)$nhdid)
+
 filter(srcprog, programid %in% unique(lagos_adk$programid))
 
 adkl
@@ -918,4 +981,394 @@ awiadk[awiadk$Permanent_ %in% c(53542311, 53542293, 131844637, 129691069),]
 
 
 adkl6 <- left_join(adkl5, awiadk, by = "Permanent_", multiple = "all")
+adkl6$altm <- 0
+adkl6$altm[!is.na(adkl6$altmPONDNO)] <- 1
+adkl6$awi <- 0
+adkl6$awi[!is.na(adkl6$AWI_active)] <- 1
 
+library(ggridges)
+
+adksurv <- select(adkl6, Permanent_, area_ha, elevation_est, aeap:als, epa_time, ny_cslap, els:nylci, awi,altm)
+
+adksurv %>% gather(key = survey, value = value, aeap:altm) %>% filter(value != 0) %>% 
+  ggplot(aes(x = (area_ha), y = survey)) + geom_density_ridges() + scale_x_log10()
+
+adksurv %>% gather(key = survey, value = value, aeap:altm) %>% filter(value != 0) %>% 
+  ggplot(aes(x = (elevation_est), y = survey)) + geom_density_ridges() + scale_x_log10()
+
+
+adksurv %>% gather(key = survey, value = value, aeap:altm) %>% filter(value != 0) %>% 
+  ggplot(aes(y = (elevation_est), x = reorder(survey, elevation_est))) + geom_boxplot() 
+
+adksurv %>% gather(key = survey, value = value, aeap:altm) %>% filter(value != 0) %>% 
+  ggplot(aes(y = (area_ha), x = reorder(survey, area_ha))) + geom_boxplot() + scale_y_log10()
+
+
+adksurv %>% gather(key = survey, value = value, aeap:altm) %>% filter(value != 0) %>%
+  group_by(Permanent_) %>% summarize(value = sum(value)) %>% unique() %>% 
+  st_zm() %>% 
+  ggplot() + geom_sf(aes(fill = factor(value), color = factor(value))) + 
+  scale_fill_viridis_d() + scale_color_viridis_d()
+
+
+# nldas <- read.csv("data/ADK_Data/Data/nldas_adk_monthly.csv")
+# 
+# ggplot(nldas, aes(x = ymd(paste(year, month, "15", sep = "-")), y = APCP_1)) + geom_smooth() + 
+#   facet_grid(lat ~ lon)
+
+adkl7a <- select(adkl7, Permanent_, area_ha) %>% group_by(Permanent_) %>% 
+  summarize(area_ha = mean(area_ha))
+
+sum(adkl7a$area_ha < 1)
+sum(adkl7a$area_ha < 10 & adkl7a$area_ha >= 1)
+sum(adkl7a$area_ha < 100 & adkl7a$area_ha >= 10)
+sum(adkl7a$area_ha < 1000 & adkl7a$area_ha >= 100)
+sum(adkl7a$area_ha < 10000 & adkl7a$area_ha >= 1000)
+sum(adkl7a$area_ha < 100000 & adkl7a$area_ha >= 10000)
+
+
+# saveRDS(adkl7, "data/adkl7_surv_pilot.rds")
+
+
+
+
+hylak <- st_read("C:/Users/borre/Downloads/HydroLAKES_polys_v10_shp/HydroLAKES_polys_v10_shp/", "HydroLAKES_polys_v10")
+
+hylak <- st_intersection(hylak, adkalt2)
+
+ggplot(hylak) + geom_sf()
+
+
+adkl8 <- st_join(adkl7, hylak)
+
+#saveRDS(adkl8, "adkl8.rds")
+adkl8 <- readRDS("adkl8.rds")
+
+adkl8.2 <- left_join(adkl8, select(as.data.frame(lagos_adk), lagoslakeid, nhdid), by = c("Permanent_" = "nhdid"), multiple = "all")
+
+
+## ADK depth data from Ganz et al (in review)
+
+adkdep <- read.csv("data/ADK_Data/adk_depth_for_jon.csv") %>% select(-X)
+
+adkl9 <- left_join(adkl8.2, adkdep, by = c("lagoslakeid"))
+
+adkl9 %>% ggplot(aes(x = as.numeric(MaxDepth), y = best_maxdepth)) + geom_point() + geom_abline(slope= 1, intercept = 0)
+
+# check habs
+
+hab18 <- read.csv("C:/Users/borre/Downloads/Harmful_Algal_Bloom_Statewide_Occurrence_Summary__2012-2018.csv")
+
+hab18 %>% group_by(Waterbody.Name, Bloom.Type, Latitude, Longitude) %>% 
+  summarize(n = n()) %>% spread(key = Bloom.Type, value = n, fill = 0) %>% 
+  filter(Latitude < 44.87791, Latitude > 43.05235, Longitude < -73.2935, Longitude > -75.31968) %>% 
+  ggplot() + geom_text(aes(x = Longitude, y = Latitude, label = Waterbody.Name), size = 2) + 
+  geom_sf(data = adkalt2, fill = NA) + coord_sf(xlim = c(-74,-73.5), ylim = c(43,43.5))
+
+# Summit, cassayuna, Keyser, Sunnyside, Moreau, Glen
+
+hab18 %>% group_by(Waterbody.Name, Bloom.Type, Latitude, Longitude) %>% 
+  summarize(n = n()) %>% spread(key = Bloom.Type, value = n, fill = 0) %>% 
+  filter(Latitude < 44.87791, Latitude > 43.05235, Longitude < -73.2935, Longitude > -75.31968) %>% 
+  filter(!Waterbody.Name %in% c("Summit Lake", "Cossayuna Lake", "Kyser Lake", "Lake Sunnyside", "Moreau Lake", "Glen Lake")) %>% 
+  ggplot() + geom_text(aes(x = Longitude, y = Latitude, label = Waterbody.Name), size = 2) + 
+  geom_point(aes(x = Longitude, y = Latitude)) + 
+  geom_sf(data = adkalt2, fill = NA)
+
+
+
+hab19 <- read.csv("C:/Users/borre/Downloads/Harmful_Algal_Blooms_by_Waterbody_Summary__Beginning_2019.csv")
+
+
+hab19 %>% group_by(Waterbody.Name, Bloom.Type, Latitude, Longitude) %>% 
+  summarize(n = n()) %>% spread(key = Bloom.Type, value = n, fill = 0) %>% 
+  filter(Latitude < 44.87791, Latitude > 43.05235, Longitude < -73.2935, Longitude > -75.31968) %>% 
+  ggplot() + geom_text(aes(x = Longitude, y = Latitude, label = Waterbody.Name), size = 2) + 
+  geom_point(aes(x = Longitude, y = Latitude), size = 2) + 
+  geom_sf(data = adkalt2, fill = NA) + coord_sf(xlim = c(-74,-73.2), ylim = c(43,43.5))
+
+rem <- c("Champlain Canal", "Summit Lake", "Cossayuna Lake", "Lake Sunnyside", "Moreau Lake", "Glen Lake", "Round Pond", "Hedges Lake", "Dead Lake")
+
+
+hab19 %>% group_by(Waterbody.Name, Bloom.Type, Latitude, Longitude) %>% 
+  summarize(n = n()) %>% spread(key = Bloom.Type, value = n, fill = 0) %>% 
+  filter(Latitude < 44.87791, Latitude > 43.05235, Longitude < -73.2935, Longitude > -75.31968) %>% 
+  filter(!Waterbody.Name %in% rem) %>% print(n = 40)
+  ggplot() + geom_text(aes(x = Longitude, y = Latitude, label = Waterbody.Name), size = 2) + 
+  geom_point(aes(x = Longitude, y = Latitude)) + 
+  geom_sf(data = adkalt2, fill = NA)
+
+  
+hab19a <- hab19 %>% group_by(Waterbody.Name, Bloom.Type, Latitude, Longitude) %>% 
+  summarize(n = n()) %>% spread(key = Bloom.Type, value = n, fill = 0) %>% 
+  filter(Latitude < 44.87791, Latitude > 43.05235, Longitude < -73.2935, Longitude > -75.31968) %>% 
+  filter(!Waterbody.Name %in% rem) 
+
+hab18a <- hab18 %>% group_by(Waterbody.Name, Bloom.Type, Latitude, Longitude) %>% 
+  summarize(n = n()) %>% spread(key = Bloom.Type, value = n, fill = 0) %>% 
+  filter(Latitude < 44.87791, Latitude > 43.05235, Longitude < -73.2935, Longitude > -75.31968) %>% 
+  filter(!Waterbody.Name %in% c("Summit Lake", "Cossayuna Lake", "Kyser Lake", "Lake Sunnyside", "Moreau Lake", "Glen Lake")) 
+
+
+(unique(c(hab19a$Waterbody.Name, hab18a$Waterbody.Name)))[!(unique(c(hab19a$Waterbody.Name, hab18a$Waterbody.Name))) %in% 
+  adkl8$GNIS_Name]
+
+habslakes <- which(adkl8$GNIS_Name %in% unique(c(hab19a$Waterbody.Name, hab18a$Waterbody.Name)) | grepl("Caroga Lake", adkl8$GNIS_Name)) 
+
+
+df <- data.frame(Permanent_ = adkl8$Permanent_[habslakes], Waterbody.Name = adkl8$GNIS_Name[habslakes])
+
+df$Waterbody.Name[df$Waterbody.Name == "Caroga Lake"] <- "East Caroga Lake"
+
+bind_rows(hab19a, hab18a) %>% 
+  ungroup() %>% 
+  select(Waterbody.Name, C, HT, S) %>% 
+  group_by(Waterbody.Name) %>% 
+  summarize(C = sum(C), HT = sum(HT), S = sum(S)) %>% 
+  left_join(df, by = "Waterbody.Name")
+
+
+adklt <- read.csv("C:/Users/borre/Downloads/adk_lt_trends.csv")
+
+
+adkl10 <- left_join(adkl9, adklt, by = "NHDPlID")
+colnames(adkl10)
+
+hist(adkl10$trend)
+
+
+adkl11 <- adkl10 %>% unique() %>% 
+  left_join(lswide, by = c("Permanent_" = "nhdid")) %>%
+  select(Permanent_, NHDPlusID, NHDPlID, GNIS_ID, VPUID, PONDNO, altmPONDNO,
+         EPA_ALTM_ID, Prmnn_I, Hylak_id, AWI_WaterbodyID, GNIS_Name, PONDNAME, lagoslakeid.x,  
+         lagosname1, Lake, AWI_wbdname, Lake_name, FDate, FType, FCode, ReachCode,
+         Visibility, AreaSqKm, area_ha, SA_ha, Lake_area, AREA, area, Shape_Area, 
+         Shape_Leng, Elevation.x, Elevation.y, Elevation_m, elevation_est, 
+         Shore_len, Shore_dev, Wshd_area, LakeType, Lake_type,
+         MaxDepth, best_maxdepth, best_meandepth, Depth_avg, 
+         cone_volume, Vol_total, Vol_res, Vol_src, 
+         Geology, Dis_avg, Res_time,
+         aeap, als, epa_time, ny_cslap, els, emap, nylci, altm, awi, 
+         DOMsampling, Boat, eDNA, RemoteSense, Isotop,
+         trend, p.value, 
+         starts_with("n_"), starts_with("strt_"), 
+         starts_with("end_"), starts_with("meanvalue_"), starts_with("medianvalue_"),
+         starts_with("maxvalue_"), starts_with("minvalue_"))
+
+
+adkl11 <- readRDS("adkl11.rds")
+length(unique(adkl11$Permanent_))
+
+cbind(adkl11$PONDNO[!is.na(adkl11$altmPONDNO)], adkl11$altmPONDNO[!is.na(adkl11$altmPONDNO)])
+
+
+ggplot(adkl11, aes(x = meanvalue_tp)) + geom_histogram() + scale_x_log10()
+ggplot(adkl11, aes(x = meanvalue_tn)) + geom_histogram() + scale_x_log10()
+ggplot(adkl11, aes(x = meanvalue_doc)) + geom_histogram() + scale_x_log10()
+ggplot(adkl11, aes(x = meanvalue_chla)) + geom_histogram() + scale_x_log10()
+
+
+adkl11$els <- 0
+adkl11$els[adkl11$Permanent_ %in% epaels$nhdid] <- 1
+
+adkl11$emap <- 0
+adkl11$emap[adkl11$Permanent_ %in% epaemap$nhdid] <- 1
+
+adkl11$nylci <- 0
+adkl11$nylci[adkl11$Permanent_ %in% nylci$nhdid] <- 1
+
+adkl11
+
+# send to lakeshapes to run simulations
+adkl11 %>% select(Permanent_, area_ha, elevation_est, best_maxdepth, best_meandepth, meanvalue_doc) %>%
+  filter(!is.na(best_maxdepth), !is.na(meanvalue_doc), best_maxdepth > best_meandepth) %>%
+  mutate(pt = st_centroid(geometry)) %>%  
+  mutate(long = unlist(purrr::map(pt,1)), lat = unlist(purrr::map(pt,2))) %>% 
+  as.data.frame() %>% select(-geometry, -pt) %>%
+  write.csv("../lakeshapes/adklakeinfo.csv", row.names = FALSE)
+
+
+test <- left_join(adkdep, adklt, by = "NHDPlID")
+
+
+boat <- st_read("data/Boat_Launches/", "Boat_Launch_Sites")
+boat
+ggplot(boat) + geom_sf()
+
+boat_adk <- st_intersection(st_transform(boat, st_crs(adkalt)), adkalt)
+ggplot(boat_adk) + geom_sf()
+
+sf_use_s2(FALSE)
+
+st_distance(select(adklakeSUMMARY, geometry, Permanent_), st_transform(boat_adk, "WGS84")) %>% 
+  filter(!is.na(WATERBODY))
+
+ggplot(adklakeSUMMARY[grep("cranberry lake", tolower(adklakeSUMMARY$lagosname1)),]) + 
+  geom_sf() + facet_wrap(~Hylak_id) + 
+  geom_sf(data = boat_adk) + 
+  coord_sf(xlim = c(-74.92301, -74.77188), ylim = c(44.11028,44.22407))
+
+
+bl1 <- boat_adk %>% group_by(WATERBODY) %>%# summarize(n = n()) %>% 
+  st_transform("WGS84") %>% 
+  filter(!grepl("River", WATERBODY))
+
+write.csv(as.data.frame(bl1), "data/boatlaunchADK.csv")
+
+ggplot(st_zm(adklakeSUMMARY)) + geom_sf() + 
+  geom_sf(data = bl1, color = "blue", size = 1)
+
+
+bld <- st_distance(bl1, adklakeSUMMARY)
+
+
+f1 <- "clear"
+b1 <- 118
+
+ddf <- filter(adklakeSUMMARY) %>% 
+  # as.data.frame() %>% 
+  select(Permanent_, lagosname1, GNIS_Name) %>% 
+  mutate(d = st_distance(geometry, bl1[b1,])[,1]) %>% #arrange(d) %>% 
+  print(n = 50)
+
+ddf
+
+filter(adklakeSUMMARY, grepl(f1, tolower(lagosname1)))[which.min(ddf$d),] %>% 
+  # as.data.frame() %>% 
+  select(Permanent_, lagosname1, GNIS_Name) %>% 
+  ggplot() + geom_sf(aes(fill = lagosname1)) + geom_sf(data = bl1[85,])
+
+filter(adklakeSUMMARY, grepl(f1, tolower(GNIS_Name)))[3,] %>% 
+  # as.data.frame() %>% 
+  select(Permanent_, lagosname1, GNIS_Name) %>% 
+  ggplot() + geom_sf(aes(fill = GNIS_Name)) + geom_sf(data = bl1[bl1$WATERBODY == b1,])
+
+
+bldf <- adklakeSUMMARY[apply(bld, 2, which.min),] %>% 
+  # as.data.frame() %>% 
+  select(Permanent_) %>% 
+  mutate(boatlaunch = 1)
+bldf <- adklakeSUMMARY[apply(bld, 1, which.min),] %>% 
+  as.data.frame() %>%
+  select(Permanent_) %>% 
+  mutate(boatlaunch = 1)
+
+boat_adk
+
+cbind(bl1, bldf) %>% 
+  select(Permanent_, COUNTY:ACCESS_TYP, boatlaunch) %>% 
+  tidyr::spread(key = ACCESS_TYP, value = boatlaunch, fill = 0) %>% 
+  saveRDS("data/boatlaunchADK.rds")
+
+adksumm2 <- left_join(adklakeSUMMARY, bldf, by = "Permanent_")
+
+bl_samp <- adksumm2 %>% as.data.frame() %>% 
+  select(lagosname1, GNIS_Name, aeap:awi, boatlaunch) %>%
+  filter(!is.na(boatlaunch)) %>% unique() %>% 
+  mutate(nsam = aeap + als + epa_time + ny_cslap + els + emap + nylci + altm + awi) %>% 
+  arrange(desc(nsam))
+
+
+
+ggplot(adkalt2) + geom_sf(fill = NA) +
+  geom_sf(data = st_zm(adklakeSUMMARY[grepl("CARRY FALLS RESERVOIR", adklakeSUMMARY$lagosname1),])) + 
+  geom_sf(data = bldf, fill = "blue", color = "blue") + 
+  geom_sf(data = boat_adk, aes(shape = ACCESS_TYP)) + 
+  theme_void()
+
+ggplot(data = st_zm(adklakeSUMMARY[grepl("CARRY FALLS RESERVOIR", adklakeSUMMARY$lagosname1),])) + 
+  geom_sf() + 
+  geom_sf(data = boat_adk)
+
+
+lci_site <- read.csv("data/LCI/Lakes Monitoring Sites.csv")
+lci_column <- read.csv("data/LCI/Lakes_ Water column chemistry.csv")
+lci_location <- read.csv("data/LCI/Lakes_Locations.csv")
+lci_dep <- read.csv("data/LCI/Lakes_ Depth profile data.csv")
+
+lciloc <- st_as_sf(lci_location, coords= c("x", "y")) %>%
+  st_set_crs("WGS84")
+
+st_intersection(adkalt2, lciloc)
+
+lcisit <- lci_site %>% 
+  filter(!is.na(LONGITUDE), !is.na(LATITUDE)) %>% 
+  st_as_sf(coords= c("LONGITUDE", "LATITUDE")) %>%
+  st_set_crs("WGS84") %>% 
+  st_intersection(adkalt2)
+
+
+ggplot(adkalt2) + geom_sf() + geom_sf(data = lcisit)
+
+lids <- unique(lcisit$LAKE_ID)
+
+adklcidep <- lci_dep %>% 
+  filter(LAKE_ID %in% lids)
+
+unique(adklcidep$CHARACTERISTIC_NAME)
+
+adklcidep %>% 
+  filter(CHARACTERISTIC_NAME == "DISSOLVED OXYGEN SATURATION") %>% 
+  ggplot(aes(x = RSLT_RESULT_VALUE, y = RSLT_PROFILE_DEPTH)) + 
+  geom_point() + 
+  facet_wrap(~month(ymd_hms(SAMPLE_TIME)), nrow = 1) + 
+  scale_y_reverse() + 
+  labs(x = "DO (% sat)", y = "Depth")
+
+
+adklcidep %>% 
+  filter(CHARACTERISTIC_NAME == "CHLOROPHYLL A (PROBE)", RSLT_RESULT_VALUE < 200) %>% 
+  ggplot(aes(x = RSLT_RESULT_VALUE, y = RSLT_PROFILE_DEPTH)) + 
+  geom_point(aes(color = month(ymd_hms(SAMPLE_TIME)))) + 
+  facet_wrap(~LAKE_ID, scales = "free") + 
+  scale_y_reverse() + 
+  labs(x = "Chla", y = "Depth")
+
+
+
+
+
+m1 <- (adklakeSUMMARY %>% filter(grepl("Clear", GNIS_Name), !is.na(meanvalue_secchi))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(GNIS_Name, meanvalue_secchi) %>% 
+  mutate(GNIS_Name = "Clear")
+m2 <- (adklakeSUMMARY %>% filter(grepl("Mud", GNIS_Name), !is.na(meanvalue_secchi))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(GNIS_Name, meanvalue_secchi) %>% 
+  mutate(GNIS_Name = "Mud")
+
+t.test(meanvalue_secchi ~ GNIS_Name, data =rbind(m1, m2))
+
+
+
+lostid <- adklakeSUMMARY %>% filter(grepl("Lost", GNIS_Name)) %>% dplyr::select(Permanent_)
+
+data.table::rbindlist(dflist) %>% filter(Permanent_ %in% lostid$Permanent_) %>% 
+  group_by(Permanent_) %>% 
+  filter(Class != "Open Water") %>% 
+  mutate(n = n/sum(n)) %>% 
+  filter(grepl("Developed", Class))
+
+
+data.table::rbindlist(dflist) %>% filter(!Permanent_ %in% lostid$Permanent_) %>% 
+  group_by(Permanent_) %>% 
+  filter(Class != "Open Water") %>% 
+  mutate(n = n/sum(n)) %>% 
+  filter(grepl("Developed", Class))
+
+
+ml1 <- adklakeSUMMARY %>% filter(grepl("Mountain", GNIS_Name)) %>%
+  as.data.frame() %>% 
+  dplyr::select(Permanent_, elevation_est) %>% 
+  mutate(type = "mountain")
+
+
+ml2 <- adklakeSUMMARY %>% filter(!grepl("Mountain", GNIS_Name)) %>%
+  as.data.frame() %>% 
+  dplyr::select(Permanent_, elevation_est) %>% 
+  mutate(type = "not")
+
+t.test(elevation_est ~ type, data = rbind(ml1, ml2))
+
+ggplot(rbind(ml1, ml2[sample(1:nrow(ml2), 61),]), aes(x=  type, y = elevation_est)) + 
+  stat_summary() + theme_bw() + labs(x = "Type", y = "Elevation")

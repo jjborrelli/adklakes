@@ -1,0 +1,684 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-12-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = NA)
+```
+
+```{r}
+library(readxl)
+
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
+library(sf)
+
+library(ggplot2)
+library(ggridges)
+library(patchwork)
+
+library(rLakeAnalyzer)
+
+```
+
+
+```{r}
+sf_use_s2(FALSE)
+
+# ADK Boundary
+adkalt <- st_read("C:/Users/borre/Downloads/cugir-007739/cugir-007739/", "blueline", quiet = TRUE)
+adkalt2 <- st_transform(adkalt, "WGS84")
+
+# Elevation 
+adkel <- terra::rast("data/ADK_Data/Data/Elevation/elev_mosaic.tif")
+
+# LAGOS data
+lagos_adk <- readRDS("data/lagos_adk")
+
+# ADK lake data summary
+adklakeSUMMARY <- readRDS("adkl11.rds")
+adkl <- st_read("data/ADK_Data/Data/adk_lakes/", "adk_lakes", quiet = TRUE)
+adkl <- st_set_crs(adkl, st_crs(adklakeSUMMARY))
+
+d_rnt <- read.csv("data/roadNtrail_dist.csv")
+adklSUM2 <- left_join(adklakeSUMMARY, d_rnt, by = "Permanent_")
+
+
+adktt <- read.csv("../lakeshapes/adk_temp_trends.csv") %>% 
+  mutate(Permanent_ = as.character(Permanent_))
+
+# NLCD
+# nlcdd <- arrow::read_parquet("data/landcover.parquet")
+nlcd3 <- readRDS("data/adk_nlcd3.rds")
+
+
+adkhu06 <- readRDS("nhd/adk_nhd_wb06_adk.rds")
+adkhu08 <- readRDS("nhd/adk_nhd_wb08_adk.rds")
+adkhu10 <- readRDS("nhd/adk_nhd_wb10_adk.rds")
+adkhu12 <- readRDS("nhd/adk_nhd_wb12_adk.rds")
+
+bl1 <- readRDS("data/boatlaunchADK.rds") %>% 
+  as.data.frame() %>% 
+  group_by(Permanent_, WATERBODY) %>% 
+  summarize(hand_launch = sum(`Hand launch`) + sum(`Hand Launch`),
+            hard_surface_launch = sum(`Hard surface launch`),
+            trailered_launch = sum(`Trailered Launch`), 
+            unimproved_trailer = sum(`Unimproved trailer`))
+```
+
+```{r, eval = FALSE}
+source("funs.R")
+```
+
+
+The Adirondack Park can be split into 5 large watersheds, effectively dividing up the sampling region. 
+
+```{r}
+ggplot(adkhu06) + geom_sf() + theme_void()
+```
+
+
+```{r, eval = FALSE}
+# NHD HU06
+
+hu6lcdf <- hulcdf(adkhu06, nlcd3)
+
+hu6lcdf <- do.call(rbind, hu6lcdf) %>% 
+  mutate(huc6 = adkhu06$huc6)
+
+hu6eldf <- huelevdf(adkhu06, adkel)
+hu6eldf <- do.call(rbind, hu6eldf) %>% 
+  mutate(huc6 = adkhu06$huc6)
+
+hu6lsdf <- hulake(adkhu06, adklakeSUMMARY)
+
+
+adk6char <- left_join(adkhu06, hu6lcdf, by = "huc6") %>% 
+  left_join(hu6eldf, by = "huc6") %>% 
+  left_join(hu6lsdf, by = "name")
+```
+
+
+## Saint Francois River-Saint Lawrence River
+
+A portion of the Saint Francois River-Saint Lawrence River watershed overlaps into the park at the northern edge. 
+
+```{r}
+hu6.a <- adkhu06[1, ]
+
+adkhu06 %>% ggplot() + geom_sf() + 
+  geom_sf(data = hu6.a, fill = "blue") + theme_void()
+```
+
+```{r}
+hu6aLAKES <- st_intersection(adklSUM2, hu6.a) 
+hu6aLAKES %>% ggplot() + geom_sf(fill = "blue") + 
+  geom_sf(data = hu6.a, fill = NA) + theme_void()
+
+```
+
+This watershed has `r length(unique(hu6aLAKES$Permanent_))` lakes, representing `r length(unique(hu6aLAKES$Permanent_))/length(unique(adklSUM2$Permanent_)) * 100` % of the total number of lakes in the park. 
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6aLAKES$Permanent_) %>% 
+  group_by(nhdid) %>% 
+  # filter(!is.na(chla)) %>% 
+  ggplot(aes(x = sampledate, y = chla)) + geom_point() + 
+  facet_wrap(~lagosname1)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6aLAKES$Permanent_) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(doc)) %>% 
+  ggplot(aes(x = sampledate, y = doc)) + geom_point() + 
+  facet_wrap(~lagosname1)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6aLAKES$Permanent_) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(colort)) %>% 
+  ggplot(aes(x = sampledate, y = colort)) + geom_point() + 
+  facet_wrap(~lagosname1)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6aLAKES$Permanent_) %>% 
+  group_by(nhdid) %>% 
+  # filter(!is.na(secchi)) %>% 
+  ggplot(aes(x = sampledate, y = secchi)) + geom_point() + 
+  facet_wrap(~lagosname1)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6aLAKES$Permanent_) %>% 
+  group_by(nhdid) %>% 
+  # filter(!is.na(secchi)) %>% 
+  ggplot(aes(x = sampledate, y = tp)) + geom_point() + 
+  facet_wrap(~lagosname1)
+```
+
+
+
+
+
+```{r}
+hu6adf <- hu6aLAKES %>% 
+  st_centroid() %>% 
+  mutate(lon = st_coordinates(geometry)[,1],
+         lat = st_coordinates(geometry)[,2]) %>% 
+  as.data.frame() %>% 
+  dplyr::select(lon, lat, Permanent_, GNIS_Name, lagosname1, aeap:awi, 
+                roaddist1_m:traildist1_m,
+                area_ha, Wshd_area, elevation_est, best_maxdepth, best_meandepth, 
+                Vol_total, Res_time) %>% 
+  left_join(select(adktt, Permanent_:coef_CB), by = "Permanent_") %>% 
+  left_join(select(as.data.frame(bl1), Permanent_, WATERBODY:unimproved_trailer), by = "Permanent_") %>% 
+  arrange(desc(altm), desc(als), desc(awi), roaddist1_m, roaddist2_m)
+# 
+# hu6adf %>% select(`Hand launch`:`Unimproved trailer`) %>% 
+#   colSums(na.rm = TRUE)
+# filter(hu6adf, `Hard surface launch` == 1)
+```
+
+In Saint Francois River-Saint Lawrence River watershed only Lower Chateaugay Lake (I believe LAGOS has mislabeled Lower Chateaugay Lake as U Chateaugay Lake) has had multiple samples of several water quality variables. Bradley Pond, Mountain Pond, North Twin Pond, South Twin Pond, and Peter Pond were each sampled once in the 80s. Upper Chateaugay Lake is also the only waterbody with a DEC boat launch (hard surface launch). The sampled ponds. 
+
+The lakes that have been sampled in this watershed are the larger than most of the other lakes. 
+
+```{r}
+adf <- data.frame(area = c(1, 10, 100, 1000, 10000, 100000),
+                  percent = round(c(107, 17, 1, 1, 1, 0)/sum(c(107, 17, 1, 1, 1, 0))*100, 2))
+knitr::kable(adf)
+```
+
+## Northeastern Lake Ontario
+
+A portion of the Northeastern Lake Ontario watershed overlaps into the park in the southwestern region. 
+
+```{r}
+hu6.b <- adkhu06[2, ]
+
+adkhu06 %>% ggplot() + geom_sf() + 
+  geom_sf(data = hu6.b, fill = "blue") + theme_void()
+```
+
+```{r}
+hu6bLAKES <- st_intersection(adklSUM2, hu6.b) 
+hu6bLAKES %>% ggplot() + geom_sf(fill = "blue") + 
+  geom_sf(data = hu6.b, fill = NA) + theme_void()
+
+```
+
+This watershed has `r length(unique(hu6bLAKES$Permanent_))` lakes, representing `r length(unique(hu6bLAKES$Permanent_))/length(unique(adklSUM2$Permanent_)) * 100` % of the total number of lakes in the park. 
+
+
+```{r, fig.height = 7, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6bLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6bLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(chla)) %>%
+  ggplot(aes(x = sampledate, y = chla)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 7, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6bLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6bLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(doc)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = doc)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6bLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6bLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(colort)) %>% 
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = colort)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6bLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6bLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(secchi)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = secchi)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6bLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6bLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(tp)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = tp)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+
+```{r}
+hu6bdf <- hu6bLAKES %>% 
+  st_centroid() %>% 
+  mutate(lon = st_coordinates(geometry)[,1],
+         lat = st_coordinates(geometry)[,2]) %>% 
+  as.data.frame() %>% 
+  dplyr::select(lon, lat, Permanent_, GNIS_Name, lagosname1, aeap:awi, 
+                roaddist1_m:traildist1_m,
+                area_ha, Wshd_area, elevation_est, best_maxdepth, best_meandepth, 
+                Vol_total, Res_time) %>% 
+  left_join(select(adktt, Permanent_:coef_CB), by = "Permanent_") %>% 
+  left_join(select(as.data.frame(bl1), Permanent_, WATERBODY:unimproved_trailer), by = "Permanent_") %>% 
+  unique() %>% 
+  arrange(desc(altm), desc(als), roaddist1_m, roaddist2_m)
+# 
+# hu6adf %>% select(`Hand launch`:`Unimproved trailer`) %>% 
+#   colSums(na.rm = TRUE)
+# filter(hu6adf, `Hard surface launch` == 1)
+```
+
+
+In the Northeastern Lake Ontario watershed there are 23 long term monitoring lakes. 298 lakes were sampled during the large effort in the 80s, and 41 are being sampled through AWI.   
+
+```{r}
+hu6bdf %>% select(Permanent_, hand_launch:unimproved_trailer) %>% 
+  unique() %>% filter(hand_launch == 1 | 
+                        hard_surface_launch == 1 | 
+                        trailered_launch == 1 | 
+                        unimproved_trailer == 1) %>% 
+  dim()
+```
+
+There are 22 lakes that have a DEC boat launch. Of these, 15 are hand launches, 8 are hard surface launches, and 2 are unimproved trailer launches.  
+
+
+```{r}
+adf <- data.frame(area = c(1, 10, 100, 1000, 10000, 100000),
+                  percent = round(c(1966, 546, 124, 23, 3, 0)/sum(c(1966, 546, 124, 23, 3, 0))*100, 2))
+knitr::kable(adf)
+```
+
+We have simulated thermal profiles for 101 lakes in this watershed, 35 of which are between 1 and 10 ha, 55 are between 10 and 100 ha, and 11 between 100 and 1000 ha. 
+
+
+
+## St Lawrence
+
+A portion of the St Lawrence watershed overlaps into the park in the northwester region. 
+
+```{r}
+hu6.c <- adkhu06[3, ]
+
+adkhu06 %>% ggplot() + geom_sf() + 
+  geom_sf(data = hu6.c, fill = "blue") + theme_void()
+```
+
+```{r}
+hu6cLAKES <- st_intersection(adklSUM2, hu6.c) 
+hu6cLAKES %>% ggplot() + geom_sf(fill = "blue") + 
+  geom_sf(data = hu6.c, fill = NA) + theme_void()
+
+```
+
+This watershed has `r length(unique(hu6cLAKES$Permanent_))` lakes, representing `r length(unique(hu6cLAKES$Permanent_))/length(unique(adklSUM2$Permanent_)) * 100` % of the total number of lakes in the park. 
+
+
+```{r, fig.height = 7, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(chla)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = chla)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 7, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(doc)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = doc)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(colort)) %>% 
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = colort)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(secchi)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = secchi)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(tp)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = tp)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+
+```{r}
+hu6cdf <- hu6cLAKES %>% 
+  st_centroid() %>% 
+  mutate(lon = st_coordinates(geometry)[,1],
+         lat = st_coordinates(geometry)[,2]) %>% 
+  as.data.frame() %>% 
+  dplyr::select(lon, lat, Permanent_, GNIS_Name, lagosname1, aeap:awi, 
+                roaddist1_m:traildist1_m,
+                area_ha, Wshd_area, elevation_est, best_maxdepth, best_meandepth, 
+                Vol_total, Res_time) %>% 
+  left_join(select(adktt, Permanent_:coef_CB), by = "Permanent_") %>% 
+  left_join(select(as.data.frame(bl1), Permanent_, WATERBODY:unimproved_trailer), by = "Permanent_") %>% 
+  unique() %>% 
+  arrange(desc(altm), desc(als), roaddist1_m, roaddist2_m)
+# 
+# hu6cdf %>% select(hand_launch:unimproved_trailer) %>%
+#   colSums(na.rm = TRUE)
+# filter(hu6cdf, `hard_surface_launch` == 1)
+```
+
+
+In the Northeastern Lake Ontario watershed there are 11 long term monitoring lakes. 492 lakes were sampled during the large effort in the 80s, and 52 are being sampled through AWI.   
+
+```{r}
+hu6cdf %>% select(Permanent_, hand_launch:unimproved_trailer) %>% 
+  unique() %>% filter(hand_launch == 1 | 
+                        hard_surface_launch == 1 | 
+                        trailered_launch == 1 | 
+                        unimproved_trailer == 1) %>% 
+  dim()
+```
+
+
+30 lakes have some kind of DEC administered boat launch. 25 lakes have a hand launch, 5 have a hard surface launch, 1 has a trailered launch, and 5 have an unimproved trailer launch. 
+
+```{r}
+adf <- data.frame(area = c(1, 10, 100, 1000, 10000, 100000),
+                  percent = round(c(2358, 717, 232, 45, 9, 0)/sum(c(2358, 717, 232, 45, 9, 0))*100, 2))
+knitr::kable(adf)
+```
+
+We have simulated thermal profiles for 194 lakes in this watershed, 77 of which are between 1 and 10 ha, 101 are between 10 and 100 ha, and 16 between 100 and 1000 ha. 
+
+
+
+## Lake Champlain Richelieu River
+
+A portion of the Lake Champlain Richelieu River watershed overlaps into the park in the northwester region. 
+
+```{r}
+hu6.d <- adkhu06[4, ]
+
+adkhu06 %>% ggplot() + geom_sf() + 
+  geom_sf(data = hu6.d, fill = "blue") + theme_void()
+```
+
+```{r}
+hu6dLAKES <- st_intersection(adklSUM2, hu6.d) 
+hu6dLAKES %>% ggplot() + geom_sf(fill = "blue") + 
+  geom_sf(data = hu6.d, fill = NA) + theme_void()
+
+```
+
+This watershed has `r length(unique(hu6dLAKES$Permanent_))` lakes, representing `r length(unique(hu6dLAKES$Permanent_))/length(unique(adklSUM2$Permanent_)) * 100` % of the total number of lakes in the park. 
+
+
+```{r, fig.height = 7, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(chla)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = chla)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 7, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(doc)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = doc)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(colort)) %>% 
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = colort)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(secchi)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = secchi)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+```{r, fig.height = 3, fig.width = 6}
+lagos_adk %>% 
+  filter(nhdid %in% hu6cLAKES$Permanent_) %>% 
+  left_join(select(as.data.frame(hu6cLAKES), Permanent_, GNIS_Name), 
+            by = c("nhdid" = "Permanent_"), relationship = "many-to-many") %>%
+  mutate(wbname = case_when(is.na(lagosname1) & !is.na(GNIS_Name) ~ GNIS_Name, 
+                          is.na(lagosname1) & is.na(GNIS_Name) ~ nhdid, 
+                          TRUE ~ lagosname1)) %>% 
+  group_by(nhdid) %>% 
+  filter(!is.na(tp)) %>%
+  mutate(n = n()) %>% 
+  filter(n > 2) %>%
+  ggplot(aes(x = sampledate, y = tp)) + geom_point() + 
+  facet_wrap(~wbname)
+```
+
+
+
+```{r}
+hu6cdf <- hu6cLAKES %>% 
+  st_centroid() %>% 
+  mutate(lon = st_coordinates(geometry)[,1],
+         lat = st_coordinates(geometry)[,2]) %>% 
+  as.data.frame() %>% 
+  dplyr::select(lon, lat, Permanent_, GNIS_Name, lagosname1, aeap:awi, 
+                roaddist1_m:traildist1_m,
+                area_ha, Wshd_area, elevation_est, best_maxdepth, best_meandepth, 
+                Vol_total, Res_time) %>% 
+  left_join(select(adktt, Permanent_:coef_CB), by = "Permanent_") %>% 
+  left_join(select(as.data.frame(bl1), Permanent_, WATERBODY:unimproved_trailer), by = "Permanent_") %>% 
+  unique() %>% 
+  arrange(desc(altm), desc(als), roaddist1_m, roaddist2_m)
+# 
+# hu6cdf %>% select(hand_launch:unimproved_trailer) %>%
+#   colSums(na.rm = TRUE)
+# filter(hu6cdf, `hard_surface_launch` == 1)
+```
+
+
+In the Northeastern Lake Ontario watershed there are 11 long term monitoring lakes. 492 lakes were sampled during the large effort in the 80s, and 52 are being sampled through AWI.   
+
+```{r}
+hu6cdf %>% select(Permanent_, hand_launch:unimproved_trailer) %>% 
+  unique() %>% filter(hand_launch == 1 | 
+                        hard_surface_launch == 1 | 
+                        trailered_launch == 1 | 
+                        unimproved_trailer == 1) %>% 
+  dim()
+```
+
+
+30 lakes have some kind of DEC administered boat launch. 25 lakes have a hand launch, 5 have a hard surface launch, 1 has a trailered launch, and 5 have an unimproved trailer launch. 
+
+```{r}
+adf <- data.frame(area = c(1, 10, 100, 1000, 10000, 100000),
+                  percent = round(c(2358, 717, 232, 45, 9, 0)/sum(c(2358, 717, 232, 45, 9, 0))*100, 2))
+knitr::kable(adf)
+```
+
+We have simulated thermal profiles for 194 lakes in this watershed, 77 of which are between 1 and 10 ha, 101 are between 10 and 100 ha, and 16 between 100 and 1000 ha. 
+
+
+
+
+
+
+
+```{r}
+sum(hu6cdf$area_ha <= 1 &      hu6cdf$area_ha > 0)
+sum(hu6cdf$area_ha <= 10 &     hu6cdf$area_ha > 1)
+sum(hu6cdf$area_ha <= 100 &    hu6cdf$area_ha > 10)
+sum(hu6cdf$area_ha <= 1000 &   hu6cdf$area_ha > 100)
+sum(hu6cdf$area_ha <= 10000 &  hu6cdf$area_ha > 1000)
+sum(hu6cdf$area_ha <= 100000 & hu6cdf$area_ha > 10000)
+
+hu6cdf %>% filter(area_ha < 1, area_ha >= 0) %>% 
+  filter(!is.na(coef_ET)) %>% nrow()
+hu6cdf %>% filter(area_ha < 10, area_ha >= 1) %>% 
+  filter(!is.na(coef_ET)) %>% nrow()
+hu6cdf %>% filter(area_ha < 100, area_ha >= 10) %>% 
+  filter(!is.na(coef_ET)) %>% nrow()
+hu6cdf %>% filter(area_ha < 1000, area_ha >= 100) %>% 
+  filter(!is.na(coef_ET)) %>% nrow()
+```
+
